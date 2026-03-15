@@ -1,0 +1,62 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Database
+*.db
+*.sqlite
+data/*.db
+
+# Logs
+*.log
+data/logs/
+
+# Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Credentials
+credentials.json
+token.pickle
+
+# Temp & Generated
+temp_sentry/
+data/voice_cache/
+generated_codes/
+PyWhatKit_DB.txt
+*.tmp
+*.temp
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/
