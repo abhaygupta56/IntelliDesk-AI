@@ -351,7 +351,7 @@ This project is licensed under the **MIT License**.
 
 For questions or suggestions:
 
-**GitHub:** @yourusername
+**GitHub:** abhaygupta56
 **Email:** [abhaygupta3347@gmail.com]
 
 ---
