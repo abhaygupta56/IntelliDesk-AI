@@ -35,15 +35,11 @@ It combines **AI intelligence + a beautiful glassmorphic UI** to create a **Rayc
 
 ### Voice Command in Action
 
-![Voice Commands](assets/voice-command.png)
+![Voice Commands](assets/code_generation.png)
 
 ### Automation Example
 
-![Automation](assets/automation.png)
-
-### Sentry Mode
-
-![Sentry Mode](assets/sentry-mode.png)
+![Automation](assets/automation.gif)
 
 ---
 
@@ -124,6 +120,7 @@ open chrome then search python tutorials
 volume up then take screenshot
 create file notes.txt then open notepad
 ```
+
 
 ---
 
