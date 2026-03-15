@@ -122,7 +122,7 @@ IntelliDesk AI is a **next-generation desktop automation assistant** that unders
 
 ### Prerequisites
 
-```bash
+bash
 ✅ Python 3.11 or higher
 ✅ Windows 10/11 (64-bit)
 ✅ Microphone (for voice commands)
@@ -630,4 +630,4 @@ IntelliDesk AI - Work smarter, not harder
 
 Made with ❤️ and Python
 
-</div> ```
+</div>
