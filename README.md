@@ -32,11 +32,6 @@ IntelliDesk AI is a **next-generation desktop automation assistant** that unders
 
 ![Command Palette](assets/palette.png)
 
-### Voice Commands in Action
-*Speak naturally in English or Hinglish*
-
-![Voice Commands](assets/voice-command.png)
-
 ### Multi-Step Automation
 *Chain commands together seamlessly*
 
