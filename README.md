@@ -563,7 +563,7 @@ Voice support
 Command history
 📂 Project Structure
 text
-
+```
 IntelliDesk-AI/
 │
 ├── 📄 run.py                      # Application entry point
@@ -609,7 +609,7 @@ IntelliDesk-AI/
 └── 📁 data/                       # Runtime data
     ├── intellidesk.db             # SQLite database
     └── logs/                      # Application logs
-
+```
 📝 License
 This project is licensed under the MIT License - see the LICENSE file for details.
 
