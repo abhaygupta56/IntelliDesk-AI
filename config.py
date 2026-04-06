@@ -55,6 +55,7 @@ class Config:
     # ═══════════════════════════════════════════════════════════════════
     # APP SETTINGS
     # ═══════════════════════════════════════════════════════════════════
+    USE_AGENTIC_ROUTER = os.getenv("USE_AGENTIC_ROUTER", "true").lower() == "true"  # ENABLED BY DEFAULT FOR TESTING
     APP_NAME = "IntelliDesk AI"
     APP_VERSION = "2.0.0"
     LANGUAGE = os.getenv("LANGUAGE", "auto")  # auto, en, hi

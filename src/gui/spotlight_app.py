@@ -21,8 +21,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 # SYSTEM IMPORTS
 # ═══════════════════════════════════════════════════════════════════════════════
 from src.core.conversation_manager import conversation_manager
+from src.core.agentic_manager import agentic_manager
 from src.utils.voice_manager import toggle_voice, is_voice_enabled, speak, stop_voice, is_speaking
 from src.utils.stt_manager import listen_async, is_listening, listen, stop_listening, reset_stt
+from config import Config
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PLATFORM DETECTION
@@ -723,7 +725,14 @@ class SpotlightApp:
         """Process via conversation manager"""
         try:
             stop_voice()
-            results = conversation_manager.process(command)
+            
+            # --- FEATURE FLAG ROUTING ---
+            if getattr(Config, "USE_AGENTIC_ROUTER", False):
+                self._log("Agentic Mode Active", Status.INFO)
+                results = agentic_manager.process(command)
+            else:
+                results = conversation_manager.process(command)
+            # ----------------------------
             
             for result in results:
                 rtype = result.get('type')

@@ -5,6 +5,7 @@ Function Registry - Smart grouped loading for performance
 from src.automation import system_ops, utility_ops, keyboard_ops, window_ops, file_ops, web_ops, media_ops, reminder_ops, email_ops
 from src.automation import whatsapp as whatsapp_ops
 from src.automation import sentry_mode
+from src.automation import vision_ops
 
 
 class FunctionRegistry:
@@ -104,6 +105,18 @@ class FunctionRegistry:
                         "required": ["app_name"]
                     },
                     "function": system_ops.close_app
+                },
+                {
+                    "name": "analyze_screen",
+                    "description": "Take a silent screenshot and analyze what is currently visible on the user's screen. Use this when the user asks questions requiring visual context, like: 'look at this', 'what's on my screen', 'read this code', 'summarize this image'.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "prompt": {"type": "string", "description": "The question or instruction about the screen. Example: 'Describe the errors in this code', 'Summarize this website'."}
+                        },
+                        "required": ["prompt"]
+                    },
+                    "function": vision_ops.analyze_screen
                 },
             ],
             
