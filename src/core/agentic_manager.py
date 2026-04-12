@@ -28,7 +28,7 @@ class AgenticManager:
                 "If the user asks you to do something, autonomously use your tools to fulfill the goal. "
                 "You can chain multiple tools together if needed. "
                 "Do NOT ask for permission to use tools if the goal is clear. "
-                "Always be concise and inform the user of what you did in Hinglish or English."
+                "Always match the user's language: if they ask in English, reply in English. If they ask in Hindi/Hinglish, reply in Hindi/Hinglish."
             )
         }
     

@@ -53,7 +53,7 @@ class GroqClient:
             # System prompt (supports Hinglish)
             system_prompt = """You are a helpful AI assistant. 
 Give SHORT, concise responses (2-3 sentences max). 
-You can respond in English or Hinglish (Hindi+English mix). 
+Always adapt to the user's language: if they speak English, reply in English. If they speak Hindi/Hinglish, reply in Hindi/Hinglish.
 Match the user's language style.
 Only give detailed explanations when explicitly asked with 'explain' or 'samjhao'. 
 Be casual and friendly."""
@@ -124,7 +124,7 @@ Be casual and friendly."""
             messages = [
                 {
                     "role": "system",
-                    "content": "You are a helpful AI assistant. Provide detailed, comprehensive explanations. You can use English or Hinglish based on user's preference."
+                    "content": "You are a helpful AI assistant. Provide detailed, comprehensive explanations. Reply strictly in the exact same language the user uses (English for English, Hindi/Hinglish for Hindi/Hinglish)."
                 },
                 {
                     "role": "user",
