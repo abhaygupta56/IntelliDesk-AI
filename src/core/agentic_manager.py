@@ -69,16 +69,54 @@ class AgenticManager:
                 iterations += 1
                 logger.info(f"Agent Loop Iteration {iterations}...")
                 
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=self.conversation_history,
-                    tools=tools,
-                    tool_choice="auto",
-                    temperature=0.3
-                )
-                
-                message = response.choices[0].message
-                
+                try:
+                    response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=self.conversation_history,
+                        tools=tools,
+                        tool_choice="auto",
+                        temperature=0.3
+                    )
+                    message = response.choices[0].message
+                except Exception as e:
+                    error_str = str(e)
+                    if "failed_generation" in error_str:
+                        logger.warning("Caught failed_generation. Attempting fallback parse.")
+                        import re
+                        # Catch both arguments and parameter-less calls
+                        pattern = r"<function=(\w+)>(?:\s*(\{.*?\}))?"
+                        matches = re.finditer(pattern, error_str)
+                        fallback_executed = False
+                        
+                        for match in matches:
+                            func_name = match.group(1)
+                            args_str = match.group(2)
+                            func_args = {}
+                            if args_str:
+                                try:
+                                    func_args = json.loads(args_str.replace("'", '"'))
+                                except:
+                                    pass
+                                    
+                            logger.info(f"Agent Tool Called (Fallback): {func_name}({func_args})")
+                            result = registry.execute(func_name, **func_args)
+                            functions_executed.append({
+                                "function": func_name,
+                                "arguments": func_args,
+                                "result": result
+                            })
+                            fallback_executed = True
+                            
+                        if fallback_executed:
+                            self.conversation_history.append({"role": "assistant", "content": "Action completed via fallback."})
+                            return [{
+                                "type": "chat",
+                                "response": "Action sequence completed via fallback.",
+                                "status": "success",
+                                "functions_executed": functions_executed
+                            }]
+                    raise e
+
                 # Check for Tool Calls
                 if not message.tool_calls:
                     # Target achieved, LLM generated conversational response

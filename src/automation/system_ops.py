@@ -58,6 +58,17 @@ class AppManager:
         try:
             logger.info(f"Opening app: {app_name}")
             
+            # Handle Chrome specifically to bypass profile picker
+            if app_name.lower().strip() in ["chrome", "google chrome"]:
+                os.system('start chrome --profile-directory="Default"')
+                self._save_history(app_name, 'open')
+                logger.info(f"✅ App launched: {app_name} (Default Profile)")
+                return {
+                    "status": "success",
+                    "message": f"{app_name} opened",
+                    "data": {"app": app_name, "method": "direct_command"}
+                }
+            
             # Press Windows key to open Start Menu
             pyautogui.press('win')
             time.sleep(0.5)
