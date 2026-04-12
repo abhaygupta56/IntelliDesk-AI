@@ -384,19 +384,6 @@ IntelliDesk-AI/
 
 ---
 
-## 🤝 Contributing
-
-Contributions, issues, and feature requests are welcome.  
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a pull request.
-
----
-
-## 📄 License
-
-Released under the [MIT License](LICENSE).
-
----
-
 ## 🙏 Acknowledgements
 
 [Groq](https://groq.com) · [Ollama](https://ollama.com) · [Edge TTS](https://github.com/rany2/edge-tts) · [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) · [OpenCV](https://opencv.org)
