@@ -54,7 +54,7 @@ class WebAutomation:
             webbrowser.open(url)
             self._save_history("google_search", query, url)
             
-            logger.info(f"✅ Google search: {query}")
+            logger.info(f"[OK] Google search: {query}")
             
             return {
                 "status": "success",
@@ -74,7 +74,7 @@ class WebAutomation:
             webbrowser.open(url)
             self._save_history("youtube_search", query, url)
             
-            logger.info(f"✅ YouTube search: {query}")
+            logger.info(f"[OK] YouTube search: {query}")
             
             return {
                 "status": "success",
@@ -91,7 +91,7 @@ class WebAutomation:
             kit.playonyt(query)
             
             self._save_history("youtube_play", query, "")
-            logger.info(f"✅ Playing on YouTube: {query}")
+            logger.info(f"[OK] Playing on YouTube: {query}")
             
             return {
                 "status": "success",
@@ -111,7 +111,7 @@ class WebAutomation:
             webbrowser.open(url)
             self._save_history("open_website", "", url)
             
-            logger.info(f"✅ Opened: {url}")
+            logger.info(f"[OK] Opened: {url}")
             
             return {
                 "status": "success",
@@ -129,7 +129,7 @@ class WebAutomation:
             webbrowser.open(url)
             self._save_history("wikipedia", query, url)
             
-            logger.info(f"✅ Wikipedia: {query}")
+            logger.info(f"[OK] Wikipedia: {query}")
             
             return {
                 "status": "success",
@@ -152,13 +152,13 @@ class WebAutomation:
             try:
                 response = requests.get(url, timeout=5)
                 weather_text = response.text.strip()
-            except:
+            except Exception:
                 weather_text = None
             
             # Also open in browser
             webbrowser.open(web_url)
             
-            logger.info(f"✅ Weather: {city or 'current location'}")
+            logger.info(f"[OK] Weather: {city or 'current location'}")
             
             return {
                 "status": "success",
@@ -192,7 +192,7 @@ class WebAutomation:
                     f.write(chunk)
             
             self._save_history("download", filename, url)
-            logger.info(f"✅ Downloaded: {filename}")
+            logger.info(f"[OK] Downloaded: {filename}")
             
             return {
                 "status": "success",
@@ -212,7 +212,7 @@ class WebAutomation:
                 (operation, query, url)
             )
             conn.commit()
-        except:
+        except Exception:
             pass
 
 

@@ -47,6 +47,7 @@ class VoiceManager:
         # Queue and threading
         self.speech_queue = []
         self.queue_lock = threading.Lock()
+        self._processor_lock = threading.Lock()  # Guards _processing flag (prevents double-start)
         self._processing = False
         self._stop_requested = False
         self._currently_speaking = False
@@ -144,11 +145,12 @@ class VoiceManager:
                 self.speech_queue.append(sentence)
             logger.info(f"Queued {len(sentences)} sentences (Total: {len(self.speech_queue)})")
         
-        # Start processing if not already running
-        if not self._processing:
-            self._stop_requested = False
-            thread = threading.Thread(target=self._process_queue, daemon=True)
-            thread.start()
+        # Start processing if not already running (lock prevents double-start race)
+        with self._processor_lock:
+            if not self._processing:
+                self._stop_requested = False
+                thread = threading.Thread(target=self._process_queue, daemon=True)
+                thread.start()
     
     def interrupt_and_speak(self, text: str):
         """
@@ -179,7 +181,7 @@ class VoiceManager:
             import pygame
             if pygame.mixer.music.get_busy():
                 pygame.mixer.music.stop()
-        except:
+        except Exception:
             pass
         
         self._currently_speaking = False
@@ -257,7 +259,7 @@ class VoiceManager:
             if self._stop_requested:
                 try:
                     temp_file.unlink()
-                except:
+                except Exception:
                     pass
                 return
             
@@ -281,7 +283,7 @@ class VoiceManager:
                 pygame.mixer.music.unload()
                 await asyncio.sleep(0.1)
                 temp_file.unlink()
-            except:
+            except Exception:
                 pass
         
         except Exception as e:
@@ -366,16 +368,16 @@ class VoiceManager:
             import pygame
             pygame.mixer.music.stop()
             pygame.mixer.quit()
-        except:
+        except Exception:
             pass
         
         try:
             for file in self.temp_dir.glob("voice_*.mp3"):
                 try:
                     file.unlink()
-                except:
+                except Exception:
                     pass
-        except:
+        except Exception:
             pass
         
         logger.info("Voice cleanup complete")

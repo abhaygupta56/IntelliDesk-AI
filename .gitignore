@@ -60,3 +60,6 @@ PyWhatKit_DB.txt
 .pytest_cache/
 .coverage
 htmlcov/
+# Ignore SQLite temporary files
+data/*.db-shm
+data/*.db-wal

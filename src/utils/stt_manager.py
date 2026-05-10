@@ -17,7 +17,7 @@ def _is_system_speaking():
     try:
         from src.utils.voice_manager import is_speaking
         return is_speaking()
-    except:
+    except Exception:
         return False
 
 

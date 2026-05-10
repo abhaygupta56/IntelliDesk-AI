@@ -219,3 +219,24 @@ def resize(width, height, title=None):
 
 def move(x, y, title=None):
     return _window.move_window(x, y, title)
+
+def manage_window(action: str, title: str = None):
+    """Macro tool to manage windows"""
+    action = action.lower()
+    
+    if action == "list":
+        return _window.list_windows()
+        
+    # If no title, we try to act on active window unless it's list/activate
+    if action == "minimize":
+        return _window.minimize_window(title)
+    elif action == "maximize":
+        return _window.maximize_window(title)
+    elif action == "close":
+        return _window.close_window(title)
+    elif action == "activate" or action == "focus":
+        if not title:
+            return {"status": "error", "message": "Title is required to activate/focus a window."}
+        return _window.activate_window(title)
+    else:
+        return {"status": "error", "message": f"Unknown window action: {action}"}

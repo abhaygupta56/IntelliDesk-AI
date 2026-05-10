@@ -25,7 +25,17 @@ class GroqAssistant:
         
         self.system_prompt = {
             "role": "system",
-            "content": "You are IntelliDesk AI. Execute functions when asked, chat naturally otherwise. Be concise."
+            "content": (
+                "You are IntelliDesk AI, an intelligent desktop assistant.\n"
+                "Your role is to answer questions, provide information, converse naturally, and execute tasks using your available tools.\n\n"
+                "CRITICAL RULES:\n"
+                "1. If the user asks a question, answer it directly. Do NOT attempt to execute a random tool just because you don't know the answer.\n"
+                "2. If the user asks you to look at something on their screen, use the `analyze_screen` tool.\n"
+                "3. If the user asks for real-time information (news, weather, facts), use the `google_search` tool.\n"
+                "4. ANTI-HALLUCINATION: NEVER guess or invent tools. If you are asked to perform an action but the corresponding tool is not in your current list, DO NOT take a screenshot or call a random tool. Simply reply: 'I don't have the required tool loaded for that action right now.'\n"
+                "5. DO NOT take a screenshot unless explicitly asked to look at the screen.\n"
+                "6. Keep your responses concise, friendly, and helpful."
+            )
         }
         
         self.conversation_history.append(self.system_prompt)
@@ -34,14 +44,14 @@ class GroqAssistant:
         """Process message with comprehensive fallback parsing"""
         try:
             logger.info(f"User: {user_message}")
-            
-            # Auto-trim history
-            if len(self.conversation_history) > self.MAX_HISTORY:
-                self.conversation_history = [
-                    self.conversation_history[0],
-                    self.conversation_history[-1]
-                ]
-            
+
+            # Keep system prompt + last MAX_HISTORY non-system messages
+            # This preserves enough assistant/tool context to prevent re-looping
+            if len(self.conversation_history) > self.MAX_HISTORY + 1:
+                system_msg = self.conversation_history[0]
+                recent = self.conversation_history[-(self.MAX_HISTORY):]
+                self.conversation_history = [system_msg] + recent
+
             self.conversation_history.append({"role": "user", "content": user_message})
             
             # Call Groq
@@ -122,7 +132,7 @@ class GroqAssistant:
                     
                     try:
                         func_args = json.loads(args_str)
-                    except:
+                    except Exception:
                         func_args = {}
             
             # ═══════════════════════════════════════════════════════════════
@@ -328,39 +338,52 @@ class GroqAssistant:
             })
             
             function_results = []
-            
+            # Guard: initialize result so it is always defined even if tool_calls is empty
+            result = {"message": "Done", "status": "success"}
+
+            # Guard: Groq can return an empty tool_calls list
+            if not tool_calls:
+                logger.warning("tool_calls was empty — no functions to execute")
+                return {
+                    "type": "chat",
+                    "response": "Understood, but no action was taken.",
+                    "functions_executed": [],
+                    "status": "success"
+                }
+
             for tool_call in tool_calls:
                 func_name = tool_call.function.name
                 func_args_str = tool_call.function.arguments
-                
+
                 if func_args_str.strip() in ['', '{}', 'null', 'None']:
                     func_args = {}
                 else:
                     try:
                         func_args = json.loads(func_args_str)
-                    except:
+                    except json.JSONDecodeError:
+                        logger.warning(f"Could not parse args for {func_name}: {func_args_str}")
                         func_args = {}
-                
+
                 logger.info(f"Executing: {func_name}({func_args})")
                 result = registry.execute(func_name, **func_args)
-                
+
                 function_results.append({
                     "function": func_name,
                     "arguments": func_args,
                     "result": result
                 })
-                
+
                 self.conversation_history.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
                     "content": json.dumps(result)
                 })
-            
+
             assistant_message = result.get("message", "Done")
             self.conversation_history.append({"role": "assistant", "content": assistant_message})
-            
+
             logger.info(f"Assistant: {assistant_message}")
-            
+
             return {
                 "type": "function_call",
                 "response": assistant_message,

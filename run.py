@@ -1,251 +1,179 @@
 """
-═══════════════════════════════════════════════════════════════════════════════
-INTELLIDESK AI - MAIN APPLICATION
-Fixed: Uses new conversation_manager system
-═══════════════════════════════════════════════════════════════════════════════
+IntelliDesk AI - Main Application Entry Point
+Routes all input through SmartRouter (Auto / Chat / Agent modes)
 """
 
 import os
 import sys
 
-# Set up path
+# Force UTF-8 for console output on Windows to prevent logging crash with emojis
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT_DIR)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# NEW SYSTEM IMPORTS
-# ═══════════════════════════════════════════════════════════════════════════════
 from src.core.conversation_manager import conversation_manager
+from src.core.agentic_manager import agentic_manager
+from src.core.router import router, MODE_AUTO, MODE_CHAT, MODE_AGENT
 from src.utils.voice_manager import voice_manager, speak, toggle_voice, is_voice_enabled, stop_voice
 from src.utils.logger import Logger
+from config import Config
 
 logger = Logger.get_logger("Main")
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# FORMATTING & DISPLAY
-# ═══════════════════════════════════════════════════════════════════════════════
-
 def format_response(result):
     """Format result for CLI display"""
-    status = result.get("status", "")
-    message = result.get("message", "")
-    data = result.get("data", {})
-    
-    # Emoji based on status
-    emoji_map = {
-        "success": "✅",
-        "error": "❌",
-        "needs_info": "❓",
-        "warning": "⚠️"
-    }
-    emoji = emoji_map.get(status, "💬")
-    
+    status  = result.get("status", "")
+    message = result.get("message") or result.get("response", "")
+    data    = result.get("data", {})
+    emoji_map = {"success": "OK", "error": "ERR", "needs_info": "?", "warning": "WARN"}
+    emoji  = emoji_map.get(status, ">")
     output = f"{emoji} {message}"
-    
-    # Add data details
     if data:
         if "code" in data:
-            output += f"\n\n```{data.get('language', '')}\n{data['code']}\n```"
-        elif "results" in data:
-            output += f"\n  Found {len(data['results'])} items"
+            output += f"\n\n{data['code']}"
         elif "path" in data:
-            output += f"\n  📁 {data['path']}"
-    
+            output += f"\n  {data['path']}"
     return output
 
 
 def print_banner():
-    """Print welcome banner"""
-    print("""
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                                                                              ║
-║   ██╗███╗   ██╗████████╗███████╗██╗     ██╗     ██╗██████╗ ███████╗███████╗  ║
-║   ██║████╗  ██║╚══██╔══╝██╔════╝██║     ██║     ██║██╔══██╗██╔════╝██╔════╝  ║
-║   ██║██╔██╗ ██║   ██║   █████╗  ██║     ██║     ██║██║  ██║█████╗  ███████╗  ║
-║   ██║██║╚██╗██║   ██║   ██╔══╝  ██║     ██║     ██║██║  ██║██╔══╝  ╚════██║  ║
-║   ██║██║ ╚████║   ██║   ███████╗███████╗███████╗██║██████╔╝███████╗███████║  ║
-║   ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚══════╝╚══════╝╚═╝╚═════╝ ╚══════╝╚══════╝  ║
-║                                                                              ║
-║                    🤖 AI-Powered Desktop Automation 🤖                       ║
-║                    62+ Functions | Hinglish | Voice Enabled                 ║
-║                                                                              ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-    """)
-    print("  💡 Commands: Type any command in English or Hinglish")
-    print("  📝 Examples: 'screenshot', 'time kya hai', 'open chrome then search python'")
-    print("  🎙️  Voice:   'voice on' | 'voice off' | 'toggle voice' | 'stop voice'")
-    print("  ⚙️  Special:  'help' | 'stats' | 'clear' | 'reset' | 'exit'")
-    print("─" * 78)
+    print("\nIntelliDesk AI - SmartRouter Edition")
+    print("Mode: Auto (auto-detect) | Chat (conversational) | Agent (task executor)")
+    print("Switch: mode auto | mode chat | mode agent")
+    print("-" * 60)
 
 
 def print_help():
-    """Print help message"""
-    print("""
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                              QUICK COMMANDS                                  ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║  💻 System:     shutdown | restart | lock | sleep | system info              ║
-║  📸 Screenshot: screenshot | ss                                              ║
-║  🔊 Volume:     volume up | volume down                                      ║
-║  ⏰ Time:       time | date | calculate 5+5                                  ║
-║  📁 Files:      create file test.txt | delete file x | organize downloads    ║
-║  🌐 Web:        google python | open youtube | weather                       ║
-║  🪟 Window:     minimize | maximize | close window                           ║
-║  ⌨️  Type:      type hello world                                            ║
-║  🎵 Media:      play python tutorial on youtube                             ║
-║  💻 Code:       write python code for bubble sort (uses Ollama)             ║
-║  🔗 Multi:      open chrome then search python | volume up then lock        ║
-║  🎙️  Voice:     voice on | voice off | toggle voice                         ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-    """)
+    print("\nQuick commands:")
+    print("  screenshot, open notepad, volume up/down")
+    print("  time, date, calculate 5+5")
+    print("  google python, play music on youtube")
+    print("  shutdown, lock, restart")
+    print("  mode auto | mode chat | mode agent")
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# CLI MODE
-# ═══════════════════════════════════════════════════════════════════════════════
 
 def run_cli():
-    """Main CLI loop using new conversation manager"""
+    """Main CLI loop - all input routed through SmartRouter"""
     print_banner()
-    
-    voice_status = "🔊 ON" if is_voice_enabled() else "🔇 OFF"
-    print(f"  Voice Status: {voice_status}")
+    voice_lbl = "ON" if is_voice_enabled() else "OFF"
+    print(f"  Voice: {voice_lbl}")
+    print(f"  Mode:  {router.mode.upper()}")
     print()
-    
+
     while True:
         try:
-            user_input = input("\n🎯 You: ").strip()
-            
+            user_input = input("\nYou: ").strip()
             if not user_input:
                 continue
-            
-            # ══════════════════════════════════════════════════════════════
-            # SPECIAL COMMANDS
-            # ══════════════════════════════════════════════════════════════
-            
-            if user_input.lower() in ['exit', 'quit', 'bye', 'q']:
-                print("\n👋 Goodbye! IntelliDesk AI shutting down...")
+
+            low = user_input.lower()
+
+            if low in ["exit", "quit", "bye", "q"]:
+                print("\nGoodbye!")
                 voice_manager.cleanup()
                 break
-            
-            if user_input.lower() == 'help':
+
+            if low == "help":
                 print_help()
                 continue
-            
-            if user_input.lower() == 'stats':
-                stats = conversation_manager.get_stats()
-                print(f"\n📊 Conversation Stats:")
-                print(f"   Messages in history: {stats['messages_in_history']}")
-                print(f"   Groq history size: {stats['groq_history']}")
-                continue
-            
-            if user_input.lower() == 'clear':
-                os.system('cls' if os.name == 'nt' else 'clear')
+
+            if low == "clear":
+                os.system("cls" if os.name == "nt" else "clear")
                 print_banner()
                 continue
-            
-            if user_input.lower() == 'reset':
+
+            if low == "reset":
                 conversation_manager.clear_history()
-                print("🔄 Conversation history cleared!")
+                agentic_manager.clear_history()
+                print("History cleared!")
                 continue
-            
-            if user_input.lower() in ['voice on', 'voice off', 'toggle voice']:
+
+            if low in ["voice on", "toggle voice"]:
                 enabled = toggle_voice()
-                status = "🔊 Voice enabled" if enabled else "🔇 Voice disabled"
-                print(f"\n{status}")
+                print("\nVoice: " + ("ON" if enabled else "OFF"))
                 continue
 
-            if user_input.lower() in ['stop', 'stop voice', 'chup', 'ruk']:
+            if low == "voice off":
+                if is_voice_enabled():
+                    toggle_voice()
+                print("\nVoice OFF")
+                continue
+
+            if low in ["stop", "stop voice", "chup", "ruk"]:
                 stop_voice()
-                print("\n🔇 Voice stopped")
+                print("\nVoice stopped")
                 continue
 
-            
-            # ══════════════════════════════════════════════════════════════
-            # PROCESS COMMAND (NEW SYSTEM)
-            # ══════════════════════════════════════════════════════════════
+            if low.startswith("mode "):
+                m = low.split()[-1]
+                if m in (MODE_AUTO, MODE_CHAT, MODE_AGENT):
+                    router.mode = m
+                    print(f"\nSwitched to {m.upper()} mode")
+                else:
+                    print("\nUnknown mode. Use: mode auto | mode chat | mode agent")
+                continue
 
+            # Route through SmartRouter
             stop_voice()
-            
-            results = conversation_manager.process(user_input)
-            
-            # Display all results
+            effective = router.effective_mode_for(user_input)
+            print(f"\n  [{effective.upper()} mode]")
+
+            results = router.process(user_input)
+
             for i, result in enumerate(results, 1):
                 if len(results) > 1:
-                    print(f"\n   [{i}/{len(results)}]")
-                
-                response = format_response(result)
-                print(f"\n🤖 Bot: {response}")
-                
-                # Show function execution details
-                if result.get('type') == 'function_call':
-                    functions = result.get('functions_executed', [])
-                    for func in functions:
-                        func_name = func['function']
-                        func_args = func['arguments']
-                        print(f"      → Executed: {func_name}({func_args})")
-                
-                # Voice output
-                if result.get('status') == 'success':
-                    speak(result.get('response', ''))
-                elif result.get('status') == 'error':
-                    speak(result.get('response', ''), force=True)
-                
-                # Stop on error/needs_info
-                if result.get('status') in ['error', 'needs_info']:
+                    print(f"\n  [{i}/{len(results)}]")
+                print(f"\nBot: {format_response(result)}")
+
+                if result.get("type") == "function_call":
+                    for func in result.get("functions_executed", []):
+                        print(f"   -> {func['function']}()")
+
+                if result.get("status") == "success":
+                    speak(result.get("response", ""))
+                elif result.get("status") == "error":
+                    speak(result.get("response", ""), force=True)
+
+                if result.get("status") in ["error", "needs_info"]:
                     break
-        
+
         except KeyboardInterrupt:
-            print("\n\n👋 Goodbye!")
+            print("\n\nGoodbye!")
             voice_manager.cleanup()
             break
-        
+
         except Exception as e:
             error_msg = f"Error: {str(e)}"
-            print(f"\n❌ {error_msg}")
+            print(f"\n{error_msg}")
             logger.error(f"CLI error: {e}")
             speak(error_msg, force=True)
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# GUI MODE
-# ═══════════════════════════════════════════════════════════════════════════════
 
 def run_gui():
     """Launch GUI mode"""
     try:
         from src.gui.spotlight_app import SpotlightApp, HAS_TRAY
-        import threading
-        
-        print("🚀 Launching IntelliDesk AI in Background...")
-        print("💡 TIP: Press 'Ctrl + Space' anytime to open the spotlight!")
-        print("💡 TIP: Press 'F12' to toggle voice on/off")
-        
+        print("Launching IntelliDesk AI...")
+        print("Ctrl+Space to open spotlight | F12 to toggle voice")
+        print("Use the Auto/Chat/Agent pill in the UI to switch modes")
         app = SpotlightApp()
-        
         if HAS_TRAY:
-            print("✅ System tray enabled")
-        
+            print("System tray enabled")
         app.run()
-    
     except KeyboardInterrupt:
-        print("\n👋 Goodbye! Shutting down...")
+        print("\nGoodbye!")
         sys.exit(0)
-    
     except Exception as e:
-        print(f"\n──────────────────────────────────────────────────")
-        print(f"❌ Failed to launch GUI: {type(e).__name__}: {str(e)}")
         import traceback
+        print(f"\nFailed to launch GUI: {type(e).__name__}: {e}")
         traceback.print_exc()
-        print(f"──────────────────────────────────────────────────\n")
-        print("Falling back to CLI mode...\n")
+        print("Falling back to CLI mode...")
         run_cli()
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# MAIN ENTRY POINT
-# ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
     """Main entry point"""
@@ -259,5 +187,5 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n👋 Goodbye! Shutting down...")
+        print("\nGoodbye!")
         sys.exit(0)

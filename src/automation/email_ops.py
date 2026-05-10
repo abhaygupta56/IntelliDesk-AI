@@ -102,7 +102,7 @@ class EmailContactManager:
             )
             return [{"name": row["name"], "email": row["email"], "category": row["category"]} 
                     for row in cursor.fetchall()]
-        except:
+        except Exception:
             return []
     
     def get_all_contacts(self):
@@ -114,7 +114,7 @@ class EmailContactManager:
             )
             return [{"name": row["name"], "email": row["email"], "category": row["category"]} 
                     for row in cursor.fetchall()]
-        except:
+        except Exception:
             return []
     
     def delete_contact(self, name):
@@ -124,7 +124,7 @@ class EmailContactManager:
             conn.execute("DELETE FROM email_contacts WHERE name = ?", (name.lower(),))
             conn.commit()
             return True
-        except:
+        except Exception:
             return False
 
 
@@ -245,7 +245,7 @@ class EmailAutomation:
                 VALUES (?, ?, ?, ?, ?)
             """, (recipient, email, subject, body, has_attachment))
             conn.commit()
-        except:
+        except Exception:
             pass
     
     def get_history(self, limit=20):
@@ -257,7 +257,7 @@ class EmailAutomation:
                 FROM email_history ORDER BY timestamp DESC LIMIT ?
             """, (limit,))
             return [dict(row) for row in cursor.fetchall()]
-        except:
+        except Exception:
             return []
     
     def save_template(self, name, subject, body):
@@ -284,7 +284,7 @@ class EmailAutomation:
             
             conn.commit()
             return True
-        except:
+        except Exception:
             return False
     
     def get_template(self, name):
@@ -297,7 +297,7 @@ class EmailAutomation:
             )
             row = cursor.fetchone()
             return {"subject": row["subject"], "body": row["body"]} if row else None
-        except:
+        except Exception:
             return None
 
 

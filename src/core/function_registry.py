@@ -60,11 +60,11 @@ class FunctionRegistry:
                 },
                 {
                     "name": "type_text",
-                    "description": "Type text using keyboard",
+                    "description": "Type a literal string of text using the keyboard. DO NOT use this for keyboard shortcuts (like 'ctrl+c' or 'enter') - use execute_keyboard_shortcut instead.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "text": {"type": "string", "description": "Text to type"}
+                            "text": {"type": "string", "description": "The exact text to type out."}
                         },
                         "required": ["text"]
                     },
@@ -83,16 +83,17 @@ class FunctionRegistry:
                     "function": system_ops.screenshot
                 },
                 {
-                    "name": "volume_up",
-                    "description": "Increase volume",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": system_ops.volume_up
-                },
-                {
-                    "name": "volume_down",
-                    "description": "Decrease volume",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": system_ops.volume_down
+                    "name": "control_volume",
+                    "description": "Control system volume. Use for volume up, down, or mute.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "action": {"type": "string", "description": "'up', 'down', or 'mute'"},
+                            "steps": {"type": "integer", "description": "Number of steps (default 5)", "default": 5}
+                        },
+                        "required": ["action"]
+                    },
+                    "function": system_ops.control_volume
                 },
                 {
                     "name": "close_app",
@@ -125,46 +126,37 @@ class FunctionRegistry:
             # ═══════════════════════════════════════════════════════════
             "system": [
                 {
-                    "name": "lock_system",
-                    "description": "Lock computer",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": system_ops.lock
+                    "name": "control_system",
+                    "description": "Control system power and status. Use for lock, shutdown, restart, sleep, or getting system info.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "action": {
+                                "type": "string", 
+                                "description": "Action: 'lock', 'shutdown', 'restart', 'sleep', 'cancel', or 'info'"
+                            },
+                            "delay": {
+                                "type": "integer", 
+                                "description": "Delay in seconds for shutdown/restart (default 0)",
+                                "default": 0
+                            }
+                        },
+                        "required": ["action"]
+                    },
+                    "function": system_ops.control_system
                 },
                 {
-                    "name": "shutdown_system",
-                    "description": "Shutdown computer",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": system_ops.shutdown
-                },
-                {
-                    "name": "restart_system",
-                    "description": "Restart computer",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": system_ops.restart
-                },
-                {
-                    "name": "sleep_system",
-                    "description": "Put computer to sleep",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": system_ops.sleep
-                },
-                {
-                    "name": "get_system_info",
-                    "description": "Get system information",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": system_ops.system_info
-                },
-                {
-                    "name": "brightness_up",
-                    "description": "Increase brightness",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": system_ops.brightness_up
-                },
-                {
-                    "name": "brightness_down",
-                    "description": "Decrease brightness",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": system_ops.brightness_down
+                    "name": "control_brightness",
+                    "description": "Control screen brightness. Use for brightness up or down.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "action": {"type": "string", "description": "'up' or 'down'"},
+                            "steps": {"type": "integer", "description": "Number of steps (default 10)", "default": 10}
+                        },
+                        "required": ["action"]
+                    },
+                    "function": system_ops.control_brightness
                 },
             ],
             
@@ -305,6 +297,18 @@ class FunctionRegistry:
                     },
                     "function": file_ops.organize_by_type
                 },
+                {
+                    "name": "open_location",
+                    "description": "Open a file or folder location in File Explorer. Use when user says 'show me the files', 'open folder', 'show folder', 'open location'.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string", "description": "Path to file or directory"}
+                        },
+                        "required": ["path"]
+                    },
+                    "function": file_ops.open_location
+                },
             ],
             
             # ═══════════════════════════════════════════════════════════
@@ -312,87 +316,24 @@ class FunctionRegistry:
             # ═══════════════════════════════════════════════════════════
             "window": [
                 {
-                    "name": "minimize_window",
-                    "description": """Minimize a window.
-                    ENGLISH: 'minimize chrome', 'minimize this window', 'minimize notepad'
-                    HINGLISH: 'chrome minimize karo', 'window minimize karo'
-                    
-                    If no title given, minimizes the active window.""",
+                    "name": "manage_window",
+                    "description": "Manage application windows (minimize, maximize, close, activate/focus, or list).",
                     "parameters": {
                         "type": "object",
                         "properties": {
+                            "action": {
+                                "type": "string",
+                                "description": "Action: 'minimize', 'maximize', 'close', 'activate', or 'list'"
+                            },
                             "title": {
                                 "type": "string",
-                                "description": "Window title to minimize (e.g., 'Chrome', 'Notepad', 'VS Code'). Leave empty for active window."
+                                "description": "Window title (e.g. 'Chrome', 'Notepad'). Leave empty for active window unless action is 'activate'."
                             }
                         },
-                        "required": []
+                        "required": ["action"]
                     },
-                    "function": window_ops.minimize
-                },
-                {
-                    "name": "maximize_window",
-                    "description": """Maximize a window.
-                    ENGLISH: 'maximize chrome', 'maximize this window', 'maximize notepad', 'make chrome fullscreen'
-                    HINGLISH: 'chrome maximize karo', 'chrome bada karo', 'window maximize karo'
-                    
-                    If no title given, maximizes the active window.""",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "title": {
-                                "type": "string",
-                                "description": "Window title to maximize (e.g., 'Chrome', 'Notepad', 'VS Code'). Leave empty for active window."
-                            }
-                        },
-                        "required": []
-                    },
-                    "function": window_ops.maximize
-                },
-                {
-                    "name": "close_window",
-                    "description": """Close a window.
-                    ENGLISH: 'close chrome', 'close this window', 'close notepad'
-                    HINGLISH: 'chrome band karo', 'window close karo'
-                    
-                    If no title given, closes the active window.""",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "title": {
-                                "type": "string",
-                                "description": "Window title to close (e.g., 'Chrome', 'Notepad', 'VS Code'). Leave empty for active window."
-                            }
-                        },
-                        "required": []
-                    },
-                    "function": window_ops.close
-                },
-                {
-                    "name": "activate_window",
-                    "description": """Bring a window to foreground.
-                    ENGLISH: 'focus chrome', 'switch to notepad', 'bring chrome to front'
-                    HINGLISH: 'chrome pe jao', 'notepad open karo'""",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "title": {
-                                "type": "string",
-                                "description": "Window title to activate"
-                            }
-                        },
-                        "required": ["title"]
-                    },
-                    "function": window_ops.activate
-                },
-                {
-                    "name": "list_all_windows",
-                    "description": """List all open windows.
-                    ENGLISH: 'list windows', 'show all windows', 'what windows are open'
-                    HINGLISH: 'sare windows dikhao', 'konse windows khule hain'""",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": window_ops.list_windows
-                },
+                    "function": window_ops.manage_window
+                }
             ],
 
             # ═══════════════════════════════════════════════════════════
@@ -400,101 +341,20 @@ class FunctionRegistry:
             # ═══════════════════════════════════════════════════════════
             "keyboard": [
                 {
-                    "name": "press_key",
-                    "description": "Press a single keyboard key. Use when user says 'press enter', 'press escape', 'press f5', 'dabao space', etc.",
+                    "name": "execute_keyboard_shortcut",
+                    "description": "Execute a single key or a combination of keys (e.g. 'ctrl+c', 'enter', 'f5', 'ctrl+v', 'select all'). Use this for copy, paste, cut, undo, refresh, hitting enter, etc.",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "key": {"type": "string", "description": "Key name: enter, escape, space, tab, f5, f12, backspace, delete"}
+                            "keys": {
+                                "type": "string", 
+                                "description": "The exact shortcut to press. Examples: 'ctrl+c', 'ctrl+v', 'ctrl+a', 'enter', 'escape', 'tab', 'backspace'"
+                            }
                         },
-                        "required": ["key"]
+                        "required": ["keys"]
                     },
-                    "function": keyboard_ops.press
-                },
-                {
-                    "name": "copy_shortcut",
-                    "description": "Copy selected text to clipboard using Ctrl+C. Use ONLY when user says 'copy', 'copy this', 'copy karo', 'clipboard me copy'. Do NOT use for typing the word 'copy'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": keyboard_ops.copy
-                },
-                {
-                    "name": "paste_shortcut",
-                    "description": "Paste clipboard content using Ctrl+V. Use when user says 'paste', 'paste karo', 'paste here', 'yaha paste karo'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": keyboard_ops.paste
-                },
-                {
-                    "name": "cut_shortcut",
-                    "description": "Cut selected text using Ctrl+X. Use when user says 'cut', 'cut this', 'cut karo'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": keyboard_ops.cut
-                },
-                {
-                    "name": "undo_action",
-                    "description": "Undo last action using Ctrl+Z. Use when user says 'undo', 'undo karo', 'undo that', 'reverse last action'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": keyboard_ops.undo
-                },
-                {
-                    "name": "redo_action",
-                    "description": "Redo last undone action using Ctrl+Y. Use when user says 'redo', 'redo karo', 'redo that'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": keyboard_ops.redo
-                },
-                {
-                    "name": "select_all_text",
-                    "description": "Select all text using Ctrl+A. Use when user says 'select all', 'select everything', 'sab select karo'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": keyboard_ops.select_all
-                },
-                {
-                    "name": "save_file",
-                    "description": "Save current file using Ctrl+S. Use when user says 'save', 'save file', 'save this', 'file save karo'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": keyboard_ops.save
-                },
-                {
-                    "name": "find_text",
-                    "description": "Open find/search dialog using Ctrl+F. Use when user says 'find', 'search', 'find text', 'ctrl f'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": keyboard_ops.find
-                },
-                {
-                    "name": "open_new_tab",
-                    "description": "Open new browser tab using Ctrl+T. Use when user says 'new tab', 'open tab', 'naya tab'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": keyboard_ops.new_tab
-                },
-                {
-                    "name": "close_current_tab",
-                    "description": "Close current browser tab using Ctrl+W. Use when user says 'close tab', 'tab band karo'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": keyboard_ops.close_tab
-                },
-                {
-                    "name": "refresh_page",
-                    "description": "Refresh current page using F5. Use when user says 'refresh', 'reload', 'refresh page', 'page refresh karo'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": keyboard_ops.refresh
-                },
-                {
-                    "name": "press_escape",
-                    "description": "Press Escape key. Use when user says 'escape', 'press escape', 'cancel'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": keyboard_ops.escape
-                },
-                {
-                    "name": "press_enter",
-                    "description": "Press Enter key one or multiple times. Use when user says 'press enter', 'enter dabao', 'hit enter'.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "times": {"type": "integer", "description": "Number of times to press (default 1)", "default": 1}
-                        },
-                        "required": []
-                    },
-                    "function": keyboard_ops.enter
-                },
+                    "function": keyboard_ops.execute_shortcut
+                }
             ],
 
             # ═══════════════════════════════════════════════════════════
@@ -502,29 +362,20 @@ class FunctionRegistry:
             # ═══════════════════════════════════════════════════════════
             "media": [
                 {
-                    "name": "play_pause_media",
-                    "description": "Toggle play/pause for currently playing media (music, video). Use when user says 'play', 'pause', 'play karo', 'pause karo', 'music chala', 'rok do'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": media_ops.play_pause
-                },
-                {
-                    "name": "next_track",
-                    "description": "Skip to next track/song. Use when user says 'next song', 'next track', 'skip', 'agla gaana', 'next bajao'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": media_ops.next_track
-                },
-                {
-                    "name": "previous_track",
-                    "description": "Go to previous track/song. Use when user says 'previous song', 'previous track', 'go back', 'pichla gaana', 'back'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": media_ops.previous_track
-                },
-                {
-                    "name": "stop_media",
-                    "description": "Stop media playback completely. Use when user says 'stop music', 'stop playing', 'band karo', 'stop'.",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                    "function": media_ops.stop
-                },
+                    "name": "control_media",
+                    "description": "Control media playback (music, video). Use for play, pause, next, previous, or stop.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "action": {
+                                "type": "string",
+                                "description": "The action to perform: 'play', 'pause', 'next', 'previous', or 'stop'"
+                            }
+                        },
+                        "required": ["action"]
+                    },
+                    "function": media_ops.control_media
+                }
             ],
 
 
@@ -894,7 +745,7 @@ class FunctionRegistry:
         if any(word in text_lower for word in ["lock", "shutdown", "restart", "sleep", "brightness", "system info"]):
             return "system"
         
-        if any(word in text_lower for word in ["search", "google", "youtube", "play", "wikipedia", "weather", "website"]):
+        if any(word in text_lower for word in ["search", "google", "youtube", "play", "wikipedia", "weather", "website", "news", "who is", "what is", "tell me about", "find out"]):
             return "web"
         
         if any(word in text_lower for word in ["file", "folder", "create", "delete", "organize", "search file"]):
@@ -952,13 +803,83 @@ class FunctionRegistry:
                     return func["function"]
         return None
     
+    # ------------------------------------------------------------------
+    # Thread-safe confirmation dispatcher
+    # The GUI registers a callable here at startup so dangerous-action
+    # dialogs are always shown on the main thread, preventing deadlocks.
+    # Signature: dispatcher(title: str, text: str) -> bool
+    # ------------------------------------------------------------------
+    _confirm_dispatcher = None
+
+    @classmethod
+    def register_confirm_dispatcher(cls, dispatcher):
+        """Register a thread-safe confirmation callback (called once by the GUI)."""
+        cls._confirm_dispatcher = dispatcher
+
+    def _confirm_dangerous_action(self, func_name: str, kwargs: dict) -> bool:
+        """
+        Ask the user whether to allow a dangerous action.
+        Always runs the dialog on the main thread to avoid Win32 deadlocks.
+        """
+        import sys
+        title = f"Security Confirmation: {func_name}"
+        text = (
+            f"IntelliDesk AI wants to execute a DESTRUCTIVE action:\n\n"
+            f"  Action: {func_name}\n"
+            f"  Arguments: {kwargs}\n\n"
+            f"Allow this?"
+        )
+
+        # Prefer the registered GUI dispatcher (guaranteed main-thread)
+        if self._confirm_dispatcher is not None:
+            return self._confirm_dispatcher(title, text)
+
+        # Fallback: use MessageBoxW but only when we are already on the main
+        # thread (safe), otherwise fall back to a console prompt.
+        if sys.platform == "win32":
+            import threading
+            import ctypes
+            if threading.current_thread() is threading.main_thread():
+                result = ctypes.windll.user32.MessageBoxW(0, text, title, 0x40034)
+                return result == 6  # IDYES
+            else:
+                # Background thread — use a console prompt instead to avoid deadlock
+                import logging
+                logging.getLogger("FunctionRegistry").warning(
+                    "MessageBoxW skipped (background thread) — falling back to console confirm."
+                )
+                answer = input(f"\n⚠️  DANGEROUS ACTION: {func_name} {kwargs}\n  Type YES to allow: ").strip()
+                return answer.upper() == "YES"
+
+        # Non-Windows fallback
+        answer = input(f"\n⚠️  DANGEROUS ACTION: {func_name} {kwargs}\n  Type YES to allow: ").strip()
+        return answer.upper() == "YES"
+
+    def get_function(self, name: str):
+        """Get function by name"""
+        for category_funcs in self.all_functions.values():
+            for func in category_funcs:
+                if func["name"] == name:
+                    return func["function"]
+        return None
+
     def execute(self, func_name: str, **kwargs):
-        """Execute function by name"""
+        """Execute function by name with thread-safe dangerous-action guard."""
+        DANGEROUS_FUNCTIONS = {"shutdown_system", "restart_system", "sleep_system", "delete_file"}
+
+        if func_name in DANGEROUS_FUNCTIONS:
+            allowed = self._confirm_dangerous_action(func_name, kwargs)
+            if not allowed:
+                return {
+                    "status": "error",
+                    "message": "User denied the execution of this action for safety reasons."
+                }
+
         func = self.get_function(func_name)
         if func:
             return func(**kwargs)
         return {"status": "error", "message": f"Function '{func_name}' not found"}
-    
+
     def get_function_count(self):
         """Total functions"""
         total = sum(len(funcs) for funcs in self.all_functions.values())

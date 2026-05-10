@@ -17,14 +17,15 @@ logger = Logger.get_logger("Sentry")
 
 class SentryMode:
     """Ultra-light surveillance with auto-breaks"""
-    
+
     def __init__(self):
         self.is_active = False
         self.thread = None
         self.camera = None
+        self._stop_event = threading.Event()  # Used for interruptible breaks
         self.temp_dir = Path("temp_sentry")
         self.temp_dir.mkdir(exist_ok=True)
-        
+
         self.config = {
             "max_duration_min": 120,
             "check_interval_sec": 5,
@@ -32,8 +33,9 @@ class SentryMode:
             "rest_after_min": 20,
             "rest_duration_min": 5,
             "max_alerts": 5,
+            "camera_index": 0,  # Was hardcoded to 1 — 0 is the standard built-in webcam
         }
-        
+
         self.stats = {
             "started_at": None,
             "alerts_sent": 0,
@@ -44,26 +46,27 @@ class SentryMode:
         """Start sentry mode"""
         if self.is_active:
             return {"status": "error", "message": "Sentry already running"}
-        
+
         if not is_configured():
             return {
                 "status": "error",
                 "message": "Telegram not configured. Add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to .env"
             }
-        
+
         if duration_min:
             self.config["max_duration_min"] = min(duration_min, 120)
-        
+
+        self._stop_event.clear()  # Reset the stop signal before starting
         self.is_active = True
         self.stats["started_at"] = datetime.now()
         self.stats["alerts_sent"] = 0
-        
+
         self.thread = threading.Thread(target=self._surveillance_loop, daemon=True)
         self.thread.start()
-        
+
         duration = self.config["max_duration_min"]
         logger.info(f"Sentry mode activated for {duration} min")
-        
+
         return {
             "status": "success",
             "message": f"🛡️ Sentry mode activated for {duration} minutes",
@@ -74,13 +77,14 @@ class SentryMode:
         """Stop sentry mode"""
         if not self.is_active:
             return {"status": "error", "message": "Sentry not running"}
-        
+
         self.is_active = False
+        self._stop_event.set()  # Wake any sleeping break immediately
         self._release_camera()
-        
+
         alerts = self.stats["alerts_sent"]
         logger.info(f"Sentry stopped. {alerts} alerts sent")
-        
+
         return {
             "status": "success",
             "message": f"🛡️ Sentry stopped. {alerts} alerts sent",
@@ -165,20 +169,26 @@ class SentryMode:
         """Capture single frame"""
         try:
             if self.camera is None:
-                self.camera = cv2.VideoCapture(1)
+                cam_idx = self.config["camera_index"]
+                self.camera = cv2.VideoCapture(cam_idx)
                 time.sleep(1)
-            
+                if not self.camera.isOpened():
+                    logger.error(f"Camera index {cam_idx} not available. Stopping sentry.")
+                    self.is_active = False
+                    self._stop_event.set()
+                    return None
+
             ret, frame = self.camera.read()
-            
+
             if not ret:
                 self._release_camera()
                 return None
-            
+
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             gray = cv2.GaussianBlur(gray, (21, 21), 0)
-            
+
             return gray
-        
+
         except Exception as e:
             logger.error(f"Capture failed: {e}")
             self._release_camera()
@@ -202,37 +212,42 @@ class SentryMode:
     
     def _handle_motion(self, frame):
         """Handle detected motion"""
+        photo_path = None
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             photo_path = self.temp_dir / f"alert_{timestamp}.jpg"
-            
+
             if self.camera:
                 ret, color_frame = self.camera.read()
                 if ret:
                     cv2.imwrite(str(photo_path), color_frame)
-            
+
             message = f"⚠️ Motion detected!\n🎯 Alert #{self.stats['alerts_sent'] + 1}"
-            
+
             success = send_alert(message, str(photo_path))
-            
+
             if success:
                 self.stats["alerts_sent"] += 1
                 self.stats["last_motion"] = datetime.now()
                 logger.info(f"Alert sent ({self.stats['alerts_sent']})")
-            
-            try:
-                photo_path.unlink()
-            except:
-                pass
-        
+
         except Exception as e:
             logger.error(f"Alert handling error: {e}")
+        finally:
+            # Always clean up the photo — even if send_alert() raised
+            if photo_path is not None:
+                try:
+                    photo_path.unlink(missing_ok=True)
+                except Exception as cleanup_err:
+                    logger.warning(f"Could not delete sentry photo: {cleanup_err}")
     
     def _take_break(self):
-        """Auto-break to prevent overheating"""
+        """Auto-break to prevent overheating — interruptible by stop()."""
+        rest_secs = self.config["rest_duration_min"] * 60
         logger.info(f"Taking {self.config['rest_duration_min']} min break...")
         self._release_camera()
-        time.sleep(self.config["rest_duration_min"] * 60)
+        # Wait on the event: returns immediately if stop() was called
+        self._stop_event.wait(timeout=rest_secs)
         logger.info("Break over, resuming surveillance")
     
     def _release_camera(self):

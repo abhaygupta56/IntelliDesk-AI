@@ -120,7 +120,7 @@ class ContactManager:
             conn.execute("DELETE FROM whatsapp_contacts WHERE name = ?", (name.lower(),))
             conn.commit()
             return True
-        except:
+        except Exception:
             return False
     
     def update_last_messaged(self, name):
@@ -132,7 +132,7 @@ class ContactManager:
                 (datetime.now(), name.lower())
             )
             conn.commit()
-        except:
+        except Exception:
             pass
 
 
@@ -180,9 +180,12 @@ class WhatsAppAutomation:
         phone = re.sub(r'[\s\-\(\)]', '', str(phone))
         
         if not phone.startswith('+'):
-            if not phone.startswith('91'):
-                phone = '91' + phone
-            phone = '+' + phone
+            if len(phone) == 10:
+                phone = '+91' + phone
+            elif not phone.startswith('91'):
+                phone = '+91' + phone
+            else:
+                phone = '+' + phone
         
         if len(phone) < 13:
             raise ValueError(f"Invalid phone: {phone}")
@@ -261,7 +264,7 @@ class WhatsAppAutomation:
                 VALUES (?, ?, ?, ?)
             """, (recipient, phone, message, msg_type))
             conn.commit()
-        except:
+        except Exception:
             pass
     
     def get_history(self, limit=20):
@@ -273,7 +276,7 @@ class WhatsAppAutomation:
                 FROM whatsapp_history ORDER BY timestamp DESC LIMIT ?
             """, (limit,))
             return [dict(row) for row in cursor.fetchall()]
-        except:
+        except Exception:
             return []
 
 

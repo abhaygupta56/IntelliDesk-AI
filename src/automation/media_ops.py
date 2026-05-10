@@ -73,3 +73,17 @@ def previous_track():
 
 def stop():
     return _media.stop()
+
+def control_media(action: str):
+    """Macro tool to control media playback"""
+    action = action.lower()
+    if action in ["play", "pause", "play_pause", "toggle"]:
+        return _media.play_pause()
+    elif action in ["next", "forward", "skip"]:
+        return _media.next_track()
+    elif action in ["previous", "prev", "back"]:
+        return _media.previous_track()
+    elif action == "stop":
+        return _media.stop()
+    else:
+        return {"status": "error", "message": f"Unknown media action: {action}"}

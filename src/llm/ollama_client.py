@@ -32,7 +32,7 @@ class OllamaClient:
         try:
             r = requests.get(f"{self.base_url}/api/tags", timeout=1)
             return r.status_code == 200
-        except:
+        except Exception:
             return False
     
     def _start(self):

@@ -15,7 +15,7 @@ class GroqClient:
     
     def __init__(self):
         self.client = Groq(api_key=Config.GROQ_API_KEY)
-        self.model = "llama-3.1-8b-instant"  # Fast model for chat
+        self.model = Config.GROQ_MODEL  # Reads from config/.env, not hardcoded
     
     def check_rate_limit(self):
         """Check if we've hit rate limits"""

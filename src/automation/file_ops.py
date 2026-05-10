@@ -61,7 +61,7 @@ class SafetyManager:
                 return True
             
             return False
-        except:
+        except Exception:
             return True  # If error, assume protected
     
     @staticmethod
@@ -83,7 +83,7 @@ class SafetyManager:
             for item in path_obj.rglob("*"):
                 if item.is_file():
                     total += item.stat().st_size
-        except:
+        except Exception:
             pass
         return total
     
@@ -370,7 +370,7 @@ class FileManager:
                 (operation, path, details)
             )
             conn.commit()
-        except:
+        except Exception:
             pass
 
 
@@ -532,7 +532,7 @@ class FolderOrganizer:
                 try:
                     shutil.move(str(file), str(date_folder / file.name))
                     moved += 1
-                except:
+                except Exception:
                     pass
             
             logger.info(f"✅ Organized {moved} files by date")

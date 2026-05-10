@@ -80,28 +80,66 @@ class UtilityManager:
         }
     
     def calculate(self, expression: str):
-        """Calculate math expression"""
+        """Calculate math expression using a safe AST evaluator (no eval())."""
+        import ast
+        import operator as op
+
+        # Allowed binary and unary operators
+        BINOPS = {
+            ast.Add: op.add,
+            ast.Sub: op.sub,
+            ast.Mult: op.mul,
+            ast.Div: op.truediv,
+            ast.Mod: op.mod,
+            ast.Pow: op.pow,
+            ast.FloorDiv: op.floordiv,
+        }
+        UNOPS = {
+            ast.UAdd: op.pos,
+            ast.USub: op.neg,
+        }
+
+        def _eval(node):
+            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                return node.value
+            elif isinstance(node, ast.BinOp):
+                op_type = type(node.op)
+                if op_type not in BINOPS:
+                    raise ValueError(f"Unsupported operator: {op_type.__name__}")
+                left = _eval(node.left)
+                right = _eval(node.right)
+                # Guard against huge exponents causing DoS
+                if op_type is ast.Pow and abs(right) > 1000:
+                    raise ValueError("Exponent too large")
+                return BINOPS[op_type](left, right)
+            elif isinstance(node, ast.UnaryOp):
+                op_type = type(node.op)
+                if op_type not in UNOPS:
+                    raise ValueError(f"Unsupported unary operator: {op_type.__name__}")
+                return UNOPS[op_type](_eval(node.operand))
+            else:
+                raise ValueError(f"Unsupported expression type: {type(node).__name__}")
+
         try:
-            # Clean expression
-            expression = expression.replace('x', '*').replace('×', '*')
-            expression = expression.replace('÷', '/').replace('^', '**')
-            
-            # Safe evaluation
-            allowed_chars = set('0123456789+-*/.() ')
-            if not all(c in allowed_chars for c in expression):
-                return {"status": "error", "message": "Invalid characters in expression"}
-            
-            result = eval(expression)
-            
+            # Normalize common alternate symbols
+            expression = (
+                expression
+                .replace('x', '*').replace('×', '*')
+                .replace('÷', '/').replace('^', '**')
+            )
+
+            tree = ast.parse(expression, mode='eval')
+            result = _eval(tree.body)
+
             # Format result
             if isinstance(result, float):
                 if result.is_integer():
                     result = int(result)
                 else:
                     result = round(result, 6)
-            
+
             logger.info(f"Calculate: {expression} = {result}")
-            
+
             return {
                 "status": "success",
                 "message": f"{expression} = {result}",
@@ -109,8 +147,10 @@ class UtilityManager:
             }
         except ZeroDivisionError:
             return {"status": "error", "message": "Cannot divide by zero"}
-        except Exception as e:
+        except (ValueError, TypeError, SyntaxError) as e:
             return {"status": "error", "message": f"Invalid expression: {e}"}
+        except Exception as e:
+            return {"status": "error", "message": f"Calculation error: {e}"}
     
     def generate_password(self, length: int = 12, include_special: bool = True):
         """Generate random password"""
@@ -176,7 +216,7 @@ class UtilityManager:
                     capture_output=True
                 )
                 return {"status": "success", "message": "Text spoken"}
-            except:
+            except Exception:
                 return {"status": "error", "message": "TTS not available. Install pyttsx3"}
         except Exception as e:
             return {"status": "error", "message": str(e)}

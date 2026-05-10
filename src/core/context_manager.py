@@ -172,12 +172,12 @@ class ContextManager:
         self.last_result = None
     
     def get_groq_context(self):
-        """Get history formatted for Groq API"""
+        """Get history formatted for Groq API (uses 'content' key as required by the API)"""
         formatted = []
         for entry in self.history:
             formatted.append({
                 "role": entry["role"],
-                "message": entry["message"]
+                "content": entry["message"]  # Groq API requires 'content', not 'message'
             })
         return formatted
 

@@ -22,6 +22,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 # ═══════════════════════════════════════════════════════════════════════════════
 from src.core.conversation_manager import conversation_manager
 from src.core.agentic_manager import agentic_manager
+from src.core.function_registry import FunctionRegistry
+from src.core.router import router, MODE_AUTO, MODE_CHAT, MODE_AGENT
 from src.utils.voice_manager import toggle_voice, is_voice_enabled, speak, stop_voice, is_speaking
 from src.utils.stt_manager import listen_async, is_listening, listen, stop_listening, reset_stt
 from config import Config
@@ -125,7 +127,14 @@ class ThreadSafeUI:
         try:
             while True:
                 callback = self.queue.get_nowait()
-                callback()
+                try:
+                    callback()
+                except Exception as cb_err:
+                    # Log but don't stop — next callback must still run
+                    import logging
+                    logging.getLogger("ThreadSafeUI").error(
+                        f"UI callback failed: {cb_err}", exc_info=True
+                    )
         except queue.Empty:
             pass
         finally:
@@ -175,14 +184,14 @@ class Animator:
                 alpha = 1 - pow(1 - t, 3)
                 try:
                     self.root.attributes("-alpha", alpha)
-                except:
+                except Exception:
                     pass
                 self.root.after(delay, animate, step + 1)
             else:
                 self._active[animation_id] = False
                 try:
                     self.root.attributes("-alpha", 1.0)
-                except:
+                except Exception:
                     pass
                 if on_complete:
                     on_complete()
@@ -207,7 +216,7 @@ class Animator:
                 alpha = 1 - (t * t)
                 try:
                     self.root.attributes("-alpha", alpha)
-                except:
+                except Exception:
                     pass
                 self.root.after(delay, animate, step + 1)
             else:
@@ -226,7 +235,7 @@ class Animator:
                 return
             try:
                 label.configure(text_color=colors[index % len(colors)])
-            except:
+            except Exception:
                 return
             self.root.after(interval_ms, animate, index + 1)
         
@@ -317,7 +326,7 @@ class SystemTray:
             self._running = False
             try:
                 self.icon.stop()
-            except:
+            except Exception:
                 pass
 
 
@@ -351,7 +360,7 @@ class HotkeyManager:
             keyboard.unhook_all()
             self._hotkeys.clear()
             self._enabled = False
-        except:
+        except Exception:
             pass
 
 
@@ -408,7 +417,11 @@ class SpotlightApp:
         self._bind_events()
         self._setup_hotkeys()
         self._setup_tray()
-        
+
+        # Register thread-safe confirmation dispatcher so dangerous-action
+        # dialogs are always shown on the Tkinter main thread (prevents deadlock)
+        FunctionRegistry.register_confirm_dispatcher(self._dangerous_action_confirm)
+
         # Apply blur after build
         self.root.after(100, self._apply_effects)
         self.root.after(180, self.show)
@@ -517,10 +530,44 @@ class SpotlightApp:
         )
         self.input_field.pack(side="left", fill="both", expand=True, padx=(0, 10))
         
+        # ── Mode toggle pill (Auto / Chat / Agent) ──────────────────────────
+        self.mode_pill = ctk.CTkFrame(
+            self.input_row,
+            fg_color=THEME.glass_surface,
+            corner_radius=8,
+            border_width=1,
+            border_color=THEME.border_subtle
+        )
+        self.mode_pill.pack(side="left", padx=(0, 8))
+
+        self._mode_buttons = {}
+        mode_defs = [
+            (MODE_AUTO,  "Auto",  "🔀"),
+            (MODE_CHAT,  "Chat",  "💬"),
+            (MODE_AGENT, "Agent", "🤖"),
+        ]
+        for mode_key, label, icon in mode_defs:
+            btn = ctk.CTkButton(
+                self.mode_pill,
+                text=f"{icon} {label}",
+                font=ctk.CTkFont(family="Segoe UI", size=10, weight="bold"),
+                fg_color="transparent",
+                hover_color=THEME.glass_elevated,
+                text_color=THEME.text_tertiary,
+                corner_radius=6,
+                width=54,
+                height=24,
+                command=lambda m=mode_key: self._set_mode(m)
+            )
+            btn.pack(side="left", padx=2, pady=2)
+            self._mode_buttons[mode_key] = btn
+
+        self._set_mode(MODE_AUTO)  # default
+
         # Keyboard hints
         self.hints = ctk.CTkFrame(self.input_row, fg_color="transparent")
         self.hints.pack(side="right", padx=(0, 4))
-        
+
         for key in ["↵", "F11", "F12", "Esc"]:
             self._create_hint(self.hints, key).pack(side="left", padx=2)
         
@@ -570,6 +617,26 @@ class SpotlightApp:
         
         return frame
     
+    def _set_mode(self, mode: str):
+        """Switch router mode and update pill UI."""
+        router.mode = mode
+        colours = {
+            MODE_AUTO:  THEME.accent,
+            MODE_CHAT:  THEME.success,
+            MODE_AGENT: THEME.warning,
+        }
+        for key, btn in self._mode_buttons.items():
+            if key == mode:
+                btn.configure(
+                    fg_color=THEME.glass_elevated,
+                    text_color=colours[key]
+                )
+            else:
+                btn.configure(
+                    fg_color="transparent",
+                    text_color=THEME.text_tertiary
+                )
+
     def _update_voice_indicator(self):
         """Update voice icon"""
         if is_voice_enabled():
@@ -598,7 +665,7 @@ class SpotlightApp:
         try:
             if self.root.focus_get() is None:
                 self.hide()
-        except:
+        except Exception:
             pass
     
     # ═══════════════════════════════════════════════════════════════════════════
@@ -722,23 +789,27 @@ class SpotlightApp:
         ).start()
     
     def _process_command(self, command: str):
-        """Process via conversation manager"""
+        """Process via SmartRouter — auto-dispatches to Chat or Agent."""
         try:
             stop_voice()
-            
-            # --- FEATURE FLAG ROUTING ---
-            if getattr(Config, "USE_AGENTIC_ROUTER", False):
-                self._log("Agentic Mode Active", Status.INFO)
-                results = agentic_manager.process(command)
-            else:
-                results = conversation_manager.process(command)
-            # ----------------------------
-            
+
+            # Show which mode will handle this (useful in Auto mode)
+            effective = router.effective_mode_for(command)
+            mode_labels = {
+                MODE_AUTO:  "🔀 Auto",
+                MODE_CHAT:  "💬 Chat",
+                MODE_AGENT: "🤖 Agent",
+            }
+            if router.mode == MODE_AUTO:
+                self._log(f"{mode_labels[effective]} mode detected", Status.INFO)
+
+            results = router.process(command)
+
             for result in results:
-                rtype = result.get('type')
-                status = result.get('status')
+                rtype    = result.get('type')
+                status   = result.get('status')
                 response = result.get('response', 'Done')
-                
+
                 if status == 'success':
                     self._log(response, Status.SUCCESS)
                 elif status == 'error':
@@ -748,20 +819,21 @@ class SpotlightApp:
                     self._log(response, Status.WARNING)
                 else:
                     self._log(response, Status.INFO)
-                
+
                 if rtype == 'function_call':
                     for f in result.get('functions_executed', []):
                         self._log(f"   → {f['function']}()", None)
-                
+
                 if status == 'success' and response:
                     speak(response)
-        
+
         except Exception as e:
             self._log(f"Error: {e}", Status.ERROR)
             speak(str(e), force=True)
-        
+
         finally:
             self._finish()
+
     
     def _finish(self):
         """Reset after processing"""
@@ -771,6 +843,30 @@ class SpotlightApp:
             self.logo.configure(text="⬡", text_color=THEME.accent)
         self.ui.run(do_finish)
     
+    # ═══════════════════════════════════════════════════════════════════════════
+    # DANGEROUS ACTION CONFIRMATION (thread-safe)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def _dangerous_action_confirm(self, title: str, text: str) -> bool:
+        """
+        Show a confirmation dialog for dangerous actions.
+        Safe to call from any thread — the dialog is always run on the
+        Tkinter main thread via a threading.Event handshake.
+        """
+        import threading
+        from tkinter import messagebox
+
+        result_holder = [False]
+        done = threading.Event()
+
+        def show_dialog():
+            result_holder[0] = messagebox.askyesno(title, text, icon="warning")
+            done.set()
+
+        self.ui.run_immediate(show_dialog)
+        done.wait(timeout=60)  # Max 60 s for user to respond
+        return result_holder[0]
+
     # ═══════════════════════════════════════════════════════════════════════════
     # VOICE & MIC
     # ═══════════════════════════════════════════════════════════════════════════
@@ -875,7 +971,7 @@ class SpotlightApp:
         try:
             self.root.quit()
             self.root.destroy()
-        except:
+        except Exception:
             pass
         
         os._exit(0)

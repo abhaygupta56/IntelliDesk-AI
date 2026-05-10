@@ -222,12 +222,12 @@ class ReminderManager:
                 message=message,
                 timeout=10
             )
-        except:
+        except Exception:
             try:
                 from win10toast import ToastNotifier
                 toaster = ToastNotifier()
                 toaster.show_toast(title, message, duration=5)
-            except:
+            except Exception:
                 logger.info(f"🔔 NOTIFICATION: {title} - {message}")
                 print(f"\n🔔 {title}: {message}\n")
 
@@ -288,19 +288,19 @@ def delete_reminder(reminder_id=None, id=None, **kwargs):
     return _reminder.delete_reminder(int(rid))
 
 
-def start_timer(seconds=None, time=None, duration=None, name="Timer", timer=None, event=None, action=None, **kwargs):
+def start_timer(seconds=None, delay_secs=None, time=None, duration=None, name="Timer", timer=None, event=None, action=None, **kwargs):
     """
     Start countdown timer
     Handles multiple parameter names from Groq:
-    - seconds, time, duration, timer -> duration in seconds
+    - seconds, delay_secs, time, duration, timer -> duration in seconds
     - name, event, action -> timer name
     """
-    # Get duration from various parameter names
-    timer_duration = seconds or time or duration or timer or 30
-    
+    # Get duration from various parameter names (time kept for backwards compat but aliased)
+    timer_duration = seconds or delay_secs or time or duration or timer or 30
+
     # Get name from various parameter names
     timer_name = name if name != "Timer" else (event or action or "Timer")
-    
+
     return _reminder.start_timer(int(timer_duration), str(timer_name))
 
 
@@ -309,8 +309,8 @@ def stop_timer(timer_id=None, **kwargs):
     return _reminder.stop_timer(timer_id)
 
 
-def set_timer(seconds=None, time=None, duration=None, name="Timer", timer=None, event=None, action=None, **kwargs):
+def set_timer(seconds=None, delay_secs=None, time=None, duration=None, name="Timer", timer=None, event=None, action=None, **kwargs):
     """
     Alias for start_timer - Groq often calls this name
     """
-    return start_timer(seconds=seconds, time=time, duration=duration, name=name, timer=timer, event=event, action=action, **kwargs)
+    return start_timer(seconds=seconds, delay_secs=delay_secs, time=time, duration=duration, name=name, timer=timer, event=event, action=action, **kwargs)

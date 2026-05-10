@@ -1,9 +1,10 @@
 """
 Database Manager for IntelliDesk AI
-Singleton pattern for performance
+Thread-safe via per-thread connections (threading.local)
 """
 
 import sqlite3
+import threading
 from pathlib import Path
 from datetime import datetime
 from config import Config
@@ -11,36 +12,46 @@ from src.utils.logger import Logger
 
 logger = Logger.get_logger("Database")
 
+# Each thread gets its own SQLite connection — this is the correct way to use
+# SQLite from multiple threads without locks on every query.
+_thread_local = threading.local()
+
 
 class DatabaseManager:
-    """Handles all database operations - Singleton pattern"""
-    
+    """Handles all database operations - Singleton pattern with per-thread connections"""
+
     _instance = None
     _initialized = False
-    _connection = None
-    
+
     def __new__(cls):
         """Ensure only one instance exists"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
-    
+
     def __init__(self):
         """Initialize only once"""
         if not DatabaseManager._initialized:
             self.db_path = Config.DATABASE_PATH
             self.initialize_database()
             DatabaseManager._initialized = True
-    
-    def get_connection(self):
-        """Get database connection (reuses existing connection)"""
-        if DatabaseManager._connection is None:
-            DatabaseManager._connection = sqlite3.connect(
-                self.db_path,
-                check_same_thread=False
-            )
-            DatabaseManager._connection.row_factory = sqlite3.Row
-        return DatabaseManager._connection
+
+    def get_connection(self) -> sqlite3.Connection:
+        """
+        Return a SQLite connection for the **current thread**.
+        Each thread owns its own connection; no cross-thread sharing occurs,
+        making this safe without additional locks.
+        """
+        conn = getattr(_thread_local, "connection", None)
+        if conn is None:
+            conn = sqlite3.connect(str(self.db_path), check_same_thread=True)
+            conn.row_factory = sqlite3.Row
+            # Enable WAL mode for better concurrent read performance
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA foreign_keys=ON")
+            _thread_local.connection = conn
+            logger.debug(f"New DB connection for thread {threading.current_thread().name}")
+        return conn
     
     def initialize_database(self):
         """Create tables if they don't exist (runs only once)"""
@@ -220,8 +231,13 @@ class DatabaseManager:
             return {"tokens": 0, "requests": 0}
     
     def close(self):
-        """Close database connection"""
-        if DatabaseManager._connection:
-            DatabaseManager._connection.close()
-            DatabaseManager._connection = None
-            DatabaseManager._initialized = False
+        """Close the current thread's database connection."""
+        conn = getattr(_thread_local, "connection", None)
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.warning(f"Error closing DB connection: {e}")
+            finally:
+                _thread_local.connection = None
+                logger.debug(f"DB connection closed for thread {threading.current_thread().name}")

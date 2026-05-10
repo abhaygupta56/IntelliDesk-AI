@@ -48,7 +48,7 @@ class TelegramNotifier:
             data = {"chat_id": self.chat_id, "text": text}
             response = requests.post(url, data=data, timeout=10)
             return response.status_code == 200
-        except:
+        except Exception:
             return False
     
     def _send_photo(self, caption, photo_path):

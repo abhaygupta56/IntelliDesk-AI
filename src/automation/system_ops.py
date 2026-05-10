@@ -23,7 +23,7 @@ from src.database.db_manager import DatabaseManager
 logger = Logger.get_logger("System")
 
 # Disable pyautogui fail-safe for smoother operation
-pyautogui.FAILSAFE = True
+pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0.3
 
 
@@ -84,7 +84,7 @@ class AppManager:
             # Save to history
             self._save_history(app_name, 'open')
             
-            logger.info(f"✅ App launched: {app_name}")
+            logger.info(f"[OK] App launched: {app_name}")
             
             return {
                 "status": "success",
@@ -135,8 +135,11 @@ class AppManager:
                 logger.info(f"✅ App closed: {app_name}")
                 return {"status": "success", "message": f"{app_name} closed"}
             else:
-                # Fallback: taskkill command
-                os.system(f'taskkill /IM "{process_name}" /F >nul 2>&1')
+                # Fallback: taskkill via subprocess (list args = no shell injection)
+                subprocess.run(
+                    ['taskkill', '/IM', process_name, '/F'],
+                    capture_output=True
+                )
                 return {"status": "success", "message": f"Attempted to close {app_name}"}
                 
         except Exception as e:
@@ -169,7 +172,7 @@ class AppManager:
                 (app_name, action)
             )
             conn.commit()
-        except:
+        except Exception:
             pass
 
 
@@ -309,7 +312,7 @@ class BrightnessControl:
                 for _ in range(steps // 10):
                     pyautogui.hotkey('fn', 'f12')  # Common brightness up key
                 return {"status": "success", "message": "Brightness increased"}
-            except:
+            except Exception:
                 return {"status": "error", "message": str(e)}
     
     def brightness_down(self, steps=10):
@@ -329,7 +332,7 @@ class BrightnessControl:
         try:
             import screen_brightness_control as sbc
             return sbc.get_brightness()[0]
-        except:
+        except Exception:
             return 50  # Default assumption
     
     def _set_brightness(self, value):
@@ -337,7 +340,7 @@ class BrightnessControl:
         try:
             import screen_brightness_control as sbc
             sbc.set_brightness(value)
-        except:
+        except Exception:
             # PowerShell fallback
             cmd = f'(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,{value})'
             subprocess.run(['powershell', '-Command', cmd], capture_output=True)
@@ -548,3 +551,44 @@ def sleep():
 
 def cancel_shutdown():
     return _system.cancel_shutdown()
+
+# ============================================================
+# MACRO TOOLS
+# ============================================================
+
+def control_volume(action: str, steps: int = 5):
+    """Macro tool for volume"""
+    action = action.lower()
+    if action == "up" or action == "increase":
+        return _volume.volume_up(steps)
+    elif action == "down" or action == "decrease":
+        return _volume.volume_down(steps)
+    elif action == "mute" or action == "unmute" or action == "toggle":
+        return _volume.mute()
+    return {"status": "error", "message": f"Unknown volume action: {action}"}
+
+def control_brightness(action: str, steps: int = 10):
+    """Macro tool for brightness"""
+    action = action.lower()
+    if action == "up" or action == "increase":
+        return _brightness.brightness_up(steps)
+    elif action == "down" or action == "decrease":
+        return _brightness.brightness_down(steps)
+    return {"status": "error", "message": f"Unknown brightness action: {action}"}
+
+def control_system(action: str, delay: int = 0):
+    """Macro tool for system power"""
+    action = action.lower()
+    if action == "lock":
+        return _system.lock()
+    elif action == "shutdown":
+        return _system.shutdown(delay)
+    elif action == "restart":
+        return _system.restart(delay)
+    elif action == "sleep":
+        return _system.sleep()
+    elif action == "cancel_shutdown" or action == "cancel":
+        return _system.cancel_shutdown()
+    elif action == "info" or action == "status":
+        return _system.get_system_info()
+    return {"status": "error", "message": f"Unknown system action: {action}"}

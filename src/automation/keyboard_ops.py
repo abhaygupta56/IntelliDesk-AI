@@ -150,6 +150,43 @@ class KeyboardManager:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
+    def execute_shortcut(self, keys: str):
+        """Execute a key or key combination (e.g. 'ctrl+c', 'enter', 'ctrl+a, ctrl+c')"""
+        try:
+            shortcuts = [s.strip() for s in keys.split(',')]
+            parts_pressed = []
+            
+            for shortcut in shortcuts:
+                parts = [k.strip().lower() for k in shortcut.split('+')]
+                if len(parts) == 1:
+                    pyautogui.press(parts[0])
+                else:
+                    pyautogui.hotkey(*parts)
+                parts_pressed.extend(parts)
+                time.sleep(0.3)  # Small delay between chained shortcuts
+            
+            result = {"status": "success", "message": f"Executed shortcut(s): {keys}"}
+            
+            # Smart Feedback
+            if "ctrl" in parts_pressed and "c" in parts_pressed:
+                import pyperclip
+                time.sleep(0.2)
+                content = pyperclip.paste()
+                result["clipboard_content"] = content[:500] + "..." if len(content) > 500 else content
+            elif "ctrl" in parts_pressed and "v" in parts_pressed:
+                import pyperclip
+                result["pasted_content"] = pyperclip.paste()
+                
+            logger.info(f"Keyboard macro: {keys}")
+            return result
+        except Exception as e:
+            logger.error(f"Shortcut failed: {e}")
+            return {
+                "status": "error", 
+                "message": str(e), 
+                "suggestion_for_ai": "Verify the window is focused or try an alternative approach."
+            }
+
 
 # Global instance
 _keyboard = KeyboardManager()
@@ -218,3 +255,6 @@ def backspace():
 
 def delete():
     return _keyboard.delete()
+
+def execute_shortcut(keys: str):
+    return _keyboard.execute_shortcut(keys)

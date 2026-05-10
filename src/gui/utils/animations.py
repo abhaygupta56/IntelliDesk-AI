@@ -16,7 +16,7 @@ def fade_in(widget, target_alpha=1.0, duration=0.3, step=0.05):
             try:
                 widget.attributes("-alpha", min(current_alpha, target_alpha))
                 time.sleep(step)
-            except:
+            except Exception:
                 break
                 
     threading.Thread(target=_animate, daemon=True).start()
@@ -33,11 +33,11 @@ def fade_out_and_destroy(widget, duration=0.2, step=0.05):
             try:
                 widget.attributes("-alpha", max(current_alpha, 0.0))
                 time.sleep(step)
-            except:
+            except Exception:
                 break
         try:
             widget.destroy()
-        except:
+        except Exception:
             pass
             
     threading.Thread(target=_animate, daemon=True).start()
