@@ -7,6 +7,7 @@ import json
 import re
 from groq import Groq
 from src.core.function_registry import registry
+from src.memory.memory_engine import memory_engine
 from src.utils.logger import Logger
 from config import Config
 
@@ -44,6 +45,9 @@ class GroqAssistant:
         """Process message with comprehensive fallback parsing"""
         try:
             logger.info(f"User: {user_message}")
+
+            # ── Extract & store facts (zero API cost) ──
+            memory_engine.process_message(user_message)
 
             # Keep system prompt + last MAX_HISTORY non-system messages
             # This preserves enough assistant/tool context to prevent re-looping
@@ -366,6 +370,17 @@ class GroqAssistant:
 
                 logger.info(f"Executing: {func_name}({func_args})")
                 result = registry.execute(func_name, **func_args)
+
+                # ── Track successful tool usage for pattern learning ──
+                if isinstance(result, dict) and result.get("status") == "success":
+                    detail = (
+                        func_args.get("app_name")
+                        or func_args.get("query")
+                        or func_args.get("recipient")
+                        or func_args.get("action")
+                        or ""
+                    )
+                    memory_engine.track_tool_usage(func_name, str(detail)[:60])
 
                 function_results.append({
                     "function": func_name,

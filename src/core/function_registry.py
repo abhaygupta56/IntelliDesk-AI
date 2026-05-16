@@ -6,6 +6,39 @@ from src.automation import system_ops, utility_ops, keyboard_ops, window_ops, fi
 from src.automation import whatsapp as whatsapp_ops
 from src.automation import sentry_mode
 from src.automation import vision_ops
+from src.memory.memory_engine import memory_engine
+
+
+def _format_memory_list() -> dict:
+    """Helper: pretty-format all stored memories for the 'show_my_memory' tool."""
+    memories = memory_engine.list_all_memories()
+    if not memories:
+        return {
+            "status": "success",
+            "message": "[MEMORY] I don't have any stored memories yet. Tell me things like 'remember that my boss is Rahul' and I'll remember them!"
+        }
+
+    lines = ["[MEMORY] Here is what I remember about you:\n"]
+    grouped: dict = {}
+    for m in memories:
+        grouped.setdefault(m["memory_type"], []).append(m)
+
+    icons = {"fact": "*", "person": "*", "preference": "*", "habit": "*", "recurring": "*"}
+    labels = {"fact": "Facts", "person": "People", "preference": "Preferences", "habit": "Habits", "recurring": "Recurring topics"}
+
+    for mem_type, items in grouped.items():
+        icon = icons.get(mem_type, "*")
+        label = labels.get(mem_type, mem_type.title())
+        lines.append(f"{icon} {label}:")
+        for item in items:
+            k = item['key'].replace('_', ' ')
+            v = item['value']
+            count = item['seen_count']
+            times = f" (mentioned {count}x)" if count > 1 else ""
+            lines.append(f"   * {k}: {v}{times}")
+        lines.append("")
+
+    return {"status": "success", "message": "\n".join(lines)}
 
 
 class FunctionRegistry:
@@ -710,10 +743,74 @@ class FunctionRegistry:
                 },
             ],
 
+            # ═══════════════════════════════════════════════════════════
+            # MEMORY - Load when: remember, forget, memory, yaad rakh
+            # ═══════════════════════════════════════════════════════════
+            "memory": [
+                {
+                    "name": "remember_this",
+                    "description": """Explicitly save a fact or preference to long-term memory.
 
-                        
+                    ENGLISH: 'remember that my boss is Rahul', 'remember I prefer dark mode',
+                             'note that my wife\'s name is Priya', 'save that I work at 9 AM'
+                    HINGLISH: 'yaad rakh mera boss Rahul hai', 'remember kar ki main dark mode chahta hoon'
+
+                    KEYWORDS: 'remember', 'note that', 'keep in mind', 'save that', 'yaad rakh'""",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "key":   {"type": "string", "description": "Short label for the fact, e.g. 'boss_name', 'preferred_theme'"},
+                            "value": {"type": "string", "description": "The value to remember, e.g. 'Rahul', 'dark mode'"},
+                            "memory_type": {
+                                "type": "string",
+                                "description": "Category: 'fact', 'preference', 'habit', 'person'. Default: 'fact'",
+                                "default": "fact"
+                            }
+                        },
+                        "required": ["key", "value"]
+                    },
+                    "function": lambda key, value, memory_type="fact", **kw: (
+                        {"status": "success", "message": f"🧠 Got it! I'll remember: {key.replace('_', ' ')} = '{value}'"}
+                        if memory_engine.store_explicit_memory(key, value, memory_type)
+                        else {"status": "error", "message": "Failed to save memory"}
+                    )
+                },
+                {
+                    "name": "forget_this",
+                    "description": """Delete a specific memory by its key.
+
+                    ENGLISH: 'forget my boss name', 'forget that I told you about dark mode'
+                    HINGLISH: 'boss ka naam bhul jao', 'ye memory delete karo'
+
+                    KEYWORDS: 'forget', 'delete memory', 'remove memory', 'bhul jao'""",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "key": {"type": "string", "description": "The memory key to delete, e.g. 'boss_name'"}
+                        },
+                        "required": ["key"]
+                    },
+                    "function": lambda key, **kw: (
+                        {"status": "success", "message": f"🗑️ Memory '{key}' deleted."}
+                        if memory_engine.forget(key)
+                        else {"status": "error", "message": f"No memory found for key '{key}'"}
+                    )
+                },
+                {
+                    "name": "show_my_memory",
+                    "description": """Show everything IntelliDesk remembers about the user.
+
+                    ENGLISH: 'what do you know about me?', 'show my memory', 'list your memories',
+                             'what have you learned about me?'
+                    HINGLISH: 'tumhe mere baare mein kya pata hai?', 'meri memory dikhao', 'kya yaad hai tumhe'
+
+                    KEYWORDS: 'know about me', 'my memory', 'what you know', 'meri memory'""",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                    "function": lambda **kw: _format_memory_list()
+                },
+            ],
         }
-    
+
     def _get_core_functions(self):
         """Get core functions (always loaded)"""
         return self.all_functions["core"]
@@ -721,6 +818,15 @@ class FunctionRegistry:
     def detect_category(self, user_input: str):
         """Detect which category to load based on user input"""
         text_lower = user_input.lower()
+
+        # Memory commands — check first (short-circuit before other categories)
+        if any(word in text_lower for word in [
+            "remember", "remember that", "note that", "keep in mind", "save that",
+            "forget", "delete memory", "remove memory",
+            "what do you know", "show my memory", "list your memories", "what have you learned",
+            "yaad rakh", "bhul jao", "meri memory", "kya yaad hai"
+        ]):
+            return "memory"
 
         if any(word in text_lower for word in [
             "whatsapp", "wa ", "watsapp",

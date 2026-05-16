@@ -57,3 +57,39 @@ CREATE INDEX IF NOT EXISTS idx_api_date ON api_usage(date);
 
 -- Insert default user
 INSERT OR IGNORE INTO users (user_id, username) VALUES (1, 'default_user');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- LONG-TERM MEMORY: Extracted facts & preferences about the user
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS user_memory (
+    memory_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    memory_type TEXT    NOT NULL,   -- 'fact', 'habit', 'preference', 'person', 'recurring'
+    key         TEXT    NOT NULL,   -- e.g. 'boss_name', 'preferred_browser', 'work_start'
+    value       TEXT    NOT NULL,   -- e.g. 'Rahul', 'chrome', '9 AM'
+    source      TEXT    DEFAULT '', -- the raw utterance that triggered this memory
+    confidence  REAL    DEFAULT 1.0,
+    seen_count  INTEGER DEFAULT 1,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_seen   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(memory_type, key) ON CONFLICT REPLACE
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- USAGE PATTERNS: Which tools / apps the user uses and when
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS usage_patterns (
+    pattern_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+    action      TEXT    NOT NULL,       -- e.g. 'tool:open_app', 'app:chrome', 'intent:whatsapp'
+    detail      TEXT    DEFAULT '',     -- extra context (e.g. which app, which contact)
+    hour_of_day INTEGER DEFAULT -1,     -- 0-23, -1 = not tracked
+    day_of_week INTEGER DEFAULT -1,     -- 0=Mon … 6=Sun, -1 = not tracked
+    count       INTEGER DEFAULT 1,
+    last_seen   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(action, detail, hour_of_day) ON CONFLICT REPLACE
+);
+
+-- Memory indexes
+CREATE INDEX IF NOT EXISTS idx_memory_type  ON user_memory(memory_type);
+CREATE INDEX IF NOT EXISTS idx_memory_seen  ON user_memory(last_seen);
+CREATE INDEX IF NOT EXISTS idx_pattern_act  ON usage_patterns(action);
+CREATE INDEX IF NOT EXISTS idx_pattern_hour ON usage_patterns(hour_of_day);

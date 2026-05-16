@@ -9,6 +9,7 @@ import platform
 import psutil
 from groq import Groq
 from src.core.function_registry import registry
+from src.memory.memory_engine import memory_engine
 from src.utils.logger import Logger
 from config import Config
 
@@ -117,20 +118,33 @@ class AgenticManager:
         logger.info("Agentic history cleared")
         
     def _get_system_context(self) -> str:
-        """Fetch real-time system context to inject into prompt"""
+        """Fetch real-time system context + long-term memory to inject into prompt"""
         try:
             current_time = datetime.datetime.now().strftime("%I:%M %p, %A, %B %d, %Y")
             os_name = platform.system() + " " + platform.release()
             battery = psutil.sensors_battery()
             batt_str = f"Battery at {battery.percent}%" if battery else "Desktop (Plugged in)"
-            
-            return (
+
+            system_state = (
                 f"[SYSTEM STATE]\n"
                 f"- Time: {current_time}\n"
                 f"- OS: {os_name}\n"
                 f"- Power: {batt_str}\n"
                 f"[/SYSTEM STATE]"
             )
+
+            # ── Long-term memory block (may be empty on first boot) ──
+            memory_ctx = memory_engine.get_memory_context()
+            last_session = memory_engine.get_last_session_summary()
+
+            parts = [system_state]
+            if memory_ctx:
+                parts.append(memory_ctx)
+            if last_session:
+                parts.append(last_session)
+
+            return "\n\n".join(parts)
+
         except Exception as e:
             logger.warning(f"Could not fetch full system context: {e}")
             return "[SYSTEM STATE] Current context unavailable."
@@ -144,6 +158,11 @@ class AgenticManager:
                 return [{"type": "error", "response": "Please say something!", "status": "error"}]
                 
             logger.info(f"Agent Goal: {user_input}")
+
+            # ── Extract & store facts from this message (zero API cost) ──
+            new_memories = memory_engine.process_message(user_input)
+            if new_memories:
+                logger.info(f"MemoryEngine: {new_memories} new fact(s) extracted")
             
             # Memory Context Window fix: Always pin the system prompt & user's original request
             if len(self.conversation_history) == 0:
@@ -156,7 +175,7 @@ class AgenticManager:
                     self.conversation_history[1]
                 ] + self.conversation_history[-10:]
                 
-            # Inject real-time system context as a separate system message
+            # Inject real-time system context + long-term memory as a separate system message
             # (NOT inside the user message — that causes the LLM to echo it back)
             system_state = self._get_system_context()
             self.conversation_history.append({
@@ -278,6 +297,18 @@ class AgenticManager:
                     # Native execution
                     result = registry.execute(func_name, **func_args)
                     
+                    # ── Track successful tool usage for pattern learning ──
+                    if isinstance(result, dict) and result.get("status") == "success":
+                        # Capture meaningful detail (e.g. which app was opened)
+                        detail = (
+                            func_args.get("app_name")
+                            or func_args.get("query")
+                            or func_args.get("recipient")
+                            or func_args.get("action")
+                            or ""
+                        )
+                        memory_engine.track_tool_usage(func_name, str(detail)[:60])
+
                     # Intercept errors to provide ReAct reasoning hints to LLM
                     if isinstance(result, dict):
                         status = result.get("status")
