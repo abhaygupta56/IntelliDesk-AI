@@ -374,9 +374,9 @@ class SpotlightApp:
     """
     
     # Dimensions
-    WIDTH = 720
+    WIDTH = 840
     HEIGHT_COLLAPSED = 68
-    HEIGHT_EXPANDED = 380
+    HEIGHT_EXPANDED = 600
     CORNER_RADIUS = 24
     
     # Animation timing
@@ -584,18 +584,14 @@ class SpotlightApp:
         )
         self.separator.pack(fill="x", padx=18, pady=(0, 8))
         
-        # Output log
-        self.output = ctk.CTkTextbox(
+        # Output log (Now a true scrollable frame)
+        self.output = ctk.CTkScrollableFrame(
             self.results,
             fg_color=THEME.glass_elevated,
-            text_color=THEME.text_secondary,
-            font=ctk.CTkFont(family="Consolas", size=12),
             corner_radius=12,
             border_width=1,
             border_color=THEME.border_inner,
-            wrap="word",
-            state="disabled",
-            height=240
+            height=460
         )
         self.output.pack(fill="both", expand=True, padx=14, pady=(0, 12))
     
@@ -734,19 +730,17 @@ class SpotlightApp:
         self.results.pack_forget()
         self._center_window(self.HEIGHT_COLLAPSED)
         
-        self.output.configure(state="normal")
-        self.output.delete("1.0", "end")
-        self.output.configure(state="disabled")
+        # Clear the scrollable log
+        for child in self.output.winfo_children():
+            child.destroy()
     
     # ═══════════════════════════════════════════════════════════════════════════
     # LOGGING
     # ═══════════════════════════════════════════════════════════════════════════
     
     def _log(self, message: str, status: Optional[Status] = None):
-        """Thread-safe logging"""
+        """Thread-safe logging with dynamic sizing for long outputs"""
         def do_log():
-            self.output.configure(state="normal")
-            
             prefix = {
                 Status.SUCCESS: "✓  ",
                 Status.ERROR: "✕  ",
@@ -755,9 +749,59 @@ class SpotlightApp:
                 Status.PROCESSING: "◌  "
             }.get(status, "   ")
             
-            self.output.insert("end", f"{prefix}{message}\n")
-            self.output.see("end")
-            self.output.configure(state="disabled")
+            # Pick color based on status
+            color = THEME.text_secondary
+            if status == Status.ERROR: color = THEME.error
+            elif status == Status.SUCCESS: color = THEME.success
+            elif status == Status.WARNING: color = THEME.warning
+
+            # Fast text wrapping/sizing logic
+            lines = message.split("\n")
+            line_count = len(lines)
+            max_line_len = max((len(L) for L in lines), default=0)
+
+            # If it's a multi-line message or long string (like code or memory dump)
+            if line_count > 1 or max_line_len > 80:
+                container = ctk.CTkFrame(self.output, fg_color="transparent")
+                container.pack(fill="x", padx=4, pady=(4, 8))
+                
+                lbl_prefix = ctk.CTkLabel(
+                    container, text=prefix, 
+                    font=ctk.CTkFont(family="Consolas", size=12), 
+                    text_color=color, width=20
+                )
+                lbl_prefix.pack(side="left", anchor="nw")
+                
+                # Use a read-only Textbox for the long content so it can be selected/copied
+                box_height = min(400, (line_count * 18) + 10)
+                box = ctk.CTkTextbox(
+                    container,
+                    fg_color="transparent",
+                    text_color=color,
+                    font=ctk.CTkFont(family="Consolas", size=12),
+                    wrap="word",
+                    height=box_height
+                )
+                box.pack(side="left", fill="x", expand=True)
+                box.insert("end", message)
+                box.configure(state="disabled")
+            else:
+                # Simple single-line label
+                lbl = ctk.CTkLabel(
+                    self.output, 
+                    text=f"{prefix}{message}", 
+                    text_color=color, 
+                    font=ctk.CTkFont(family="Consolas", size=12),
+                    justify="left",
+                    anchor="w"
+                )
+                lbl.pack(fill="x", padx=4, pady=2)
+            
+            # Auto-scroll to the bottom of the frame
+            try:
+                self.output._parent_canvas.yview_moveto(1.0)
+            except Exception:
+                pass
         
         self.ui.run_immediate(do_log)
     
