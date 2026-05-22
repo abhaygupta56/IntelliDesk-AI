@@ -62,20 +62,22 @@ _media = MediaControl()
 # CONVENIENCE FUNCTIONS
 # ============================================================
 
-def play_pause():
+def play_pause(**kwargs):
     return _media.play_pause()
 
-def next_track():
+def next_track(**kwargs):
     return _media.next_track()
 
-def previous_track():
+def previous_track(**kwargs):
     return _media.previous_track()
 
-def stop():
+def stop(**kwargs):
     return _media.stop()
 
-def control_media(action: str):
+def control_media(action: str = None, **kwargs):
     """Macro tool to control media playback"""
+    if action is None:
+        return {"status": "error", "message": "No action specified"}
     action = action.lower()
     if action in ["play", "pause", "play_pause", "toggle"]:
         return _media.play_pause()
