@@ -18,7 +18,9 @@ class ReminderManager:
     def __init__(self):
         self.db = DatabaseManager()
         self.active_timers = {}
+        self.active_reminders = {}
         self._init_reminders_table()
+        self.load_pending_reminders()
     
     def _init_reminders_table(self):
         """Create reminders table"""
@@ -27,10 +29,11 @@ class ReminderManager:
             
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS reminders (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    reminder_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER DEFAULT 1,
                     title TEXT NOT NULL,
                     description TEXT DEFAULT '',
-                    remind_time TEXT NOT NULL,
+                    reminder_time TEXT NOT NULL,
                     is_completed INTEGER DEFAULT 0,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
@@ -39,6 +42,38 @@ class ReminderManager:
             
         except Exception as e:
             logger.error(f"Failed to create reminders table: {e}")
+            
+    def load_pending_reminders(self):
+        """Load and reschedule all pending future reminders on startup"""
+        try:
+            conn = self.db.get_connection()
+            cursor = conn.execute(
+                "SELECT reminder_id, title, reminder_time FROM reminders WHERE is_completed = 0"
+            )
+            
+            now = datetime.now()
+            count = 0
+            for row in cursor.fetchall():
+                reminder_id = row["reminder_id"]
+                title = row["title"]
+                remind_time_str = row["reminder_time"]
+                
+                try:
+                    remind_at = datetime.strptime(remind_time_str, "%Y-%m-%d %H:%M:%S")
+                    if remind_at > now:
+                        self._schedule_notification(reminder_id, title, remind_at)
+                        count += 1
+                    else:
+                        # Missed while application was closed
+                        self._show_notification("⏰ Missed Reminder", f"Missed while offline: {title}")
+                        self.complete_reminder(reminder_id)
+                except Exception as parse_err:
+                    logger.error(f"Failed to parse reminder time '{remind_time_str}': {parse_err}")
+            
+            if count > 0:
+                logger.info(f"Loaded and scheduled {count} pending reminder(s) from database")
+        except Exception as e:
+            logger.error(f"Failed to load pending reminders: {e}")
     
     def create_reminder(self, title: str, remind_at: datetime, description: str = ""):
         """Create a reminder"""
@@ -47,15 +82,16 @@ class ReminderManager:
             
             remind_time_str = remind_at.strftime("%Y-%m-%d %H:%M:%S")
             
-            conn.execute(
-                """INSERT INTO reminders (title, description, remind_time) 
+            cursor = conn.execute(
+                """INSERT INTO reminders (title, description, reminder_time) 
                    VALUES (?, ?, ?)""",
                 (title, description, remind_time_str)
             )
             conn.commit()
+            reminder_id = cursor.lastrowid
             
             # Schedule notification
-            self._schedule_notification(title, remind_at)
+            self._schedule_notification(reminder_id, title, remind_at)
             
             time_str = remind_at.strftime("%I:%M %p on %B %d")
             logger.info(f"✅ Reminder created: {title} at {time_str}")
@@ -91,20 +127,20 @@ class ReminderManager:
             
             if include_completed:
                 cursor = conn.execute(
-                    "SELECT * FROM reminders ORDER BY remind_time ASC"
+                    "SELECT * FROM reminders ORDER BY reminder_time ASC"
                 )
             else:
                 cursor = conn.execute(
-                    "SELECT * FROM reminders WHERE is_completed = 0 ORDER BY remind_time ASC"
+                    "SELECT * FROM reminders WHERE is_completed = 0 ORDER BY reminder_time ASC"
                 )
             
             reminders = []
             for row in cursor.fetchall():
                 reminders.append({
-                    "id": row["id"],
+                    "id": row["reminder_id"],
                     "title": row["title"],
                     "description": row["description"],
-                    "remind_time": row["remind_time"],
+                    "remind_time": row["reminder_time"],
                     "is_completed": bool(row["is_completed"])
                 })
             
@@ -125,9 +161,13 @@ class ReminderManager:
     def complete_reminder(self, reminder_id: int):
         """Mark reminder as completed"""
         try:
+            if reminder_id in self.active_reminders:
+                self.active_reminders[reminder_id].cancel()
+                del self.active_reminders[reminder_id]
+                
             conn = self.db.get_connection()
             conn.execute(
-                "UPDATE reminders SET is_completed = 1 WHERE id = ?",
+                "UPDATE reminders SET is_completed = 1 WHERE reminder_id = ?",
                 (reminder_id,)
             )
             conn.commit()
@@ -140,8 +180,12 @@ class ReminderManager:
     def delete_reminder(self, reminder_id: int):
         """Delete reminder"""
         try:
+            if reminder_id in self.active_reminders:
+                self.active_reminders[reminder_id].cancel()
+                del self.active_reminders[reminder_id]
+                
             conn = self.db.get_connection()
-            conn.execute("DELETE FROM reminders WHERE id = ?", (reminder_id,))
+            conn.execute("DELETE FROM reminders WHERE reminder_id = ?", (reminder_id,))
             conn.commit()
             
             logger.info(f"Reminder {reminder_id} deleted")
@@ -205,17 +249,23 @@ class ReminderManager:
         except Exception as e:
             return {"status": "error", "message": str(e)}
     
-    def _schedule_notification(self, title: str, remind_at: datetime):
+    def _schedule_notification(self, reminder_id: int, title: str, remind_at: datetime):
         """Schedule notification"""
         delay = (remind_at - datetime.now()).total_seconds()
         
         if delay > 0:
-            timer = threading.Timer(delay, lambda: self._show_notification("⏰ Reminder", title))
+            def trigger_reminder():
+                self._show_notification("⏰ Reminder", title)
+                self.complete_reminder(reminder_id)
+                
+            timer = threading.Timer(delay, trigger_reminder)
+            self.active_reminders[reminder_id] = timer
             timer.start()
     
     def _show_notification(self, title: str, message: str):
-        """Show desktop notification"""
+        """Show desktop notification using plyer or native Windows PowerShell balloon"""
         try:
+            # pyrefly: ignore [missing-import]
             from plyer import notification
             notification.notify(
                 title=title,
@@ -224,11 +274,28 @@ class ReminderManager:
             )
         except Exception:
             try:
-                from win10toast import ToastNotifier
-                toaster = ToastNotifier()
-                toaster.show_toast(title, message, duration=5)
-            except Exception:
-                logger.info(f"🔔 NOTIFICATION: {title} - {message}")
+                import subprocess
+                import os
+                
+                # Use native PowerShell NotifyIcon to show a balloon tip
+                ps_script = (
+                    f'[void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms"); '
+                    f'$icon = New-Object System.Windows.Forms.NotifyIcon; '
+                    f'$icon.Icon = [System.Drawing.SystemIcons]::Information; '
+                    f'$icon.BalloonTipIcon = "Info"; '
+                    f'$icon.BalloonTipTitle = "{title.replace(chr(34), chr(39))}"; '
+                    f'$icon.BalloonTipText = "{message.replace(chr(34), chr(39))}"; '
+                    f'$icon.Visible = $True; '
+                    f'$icon.ShowBalloonTip(5000);'
+                )
+                subprocess.Popen(
+                    ["powershell", "-NoProfile", "-Command", ps_script],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                )
+            except Exception as e:
+                logger.info(f"🔔 NOTIFICATION: {title} - {message} (PS Fallback Error: {e})")
                 print(f"\n🔔 {title}: {message}\n")
 
 
