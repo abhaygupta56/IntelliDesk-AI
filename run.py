@@ -129,7 +129,7 @@ def run_cli():
                     print(f"\n  [{i}/{len(results)}]")
                 print(f"\nBot: {format_response(result)}")
 
-                if result.get("type") == "function_call":
+                if result.get("functions_executed"):
                     for func in result.get("functions_executed", []):
                         print(f"   -> {func['function']}()")
 
