@@ -324,35 +324,35 @@ _utility = UtilityManager()
 # CONVENIENCE FUNCTIONS
 # ============================================================
 
-def get_time():
+def get_time(**kwargs):
     return _utility.get_time()
 
-def get_date():
+def get_date(**kwargs):
     return _utility.get_date()
 
-def calculate(expression):
+def calculate(expression, **kwargs):
     return _utility.calculate(expression)
 
-def generate_password(length=12, include_special=True):
+def generate_password(length=12, include_special=True, **kwargs):
     return _utility.generate_password(length, include_special)
 
-def speak(text):
+def speak(text, **kwargs):
     return _utility.text_to_speech(text)
 
-def create_note(content, title=None):
+def create_note(content, title=None, **kwargs):
     return _utility.create_note(content, title)
 
-def get_notes(limit=10):
+def get_notes(limit=10, **kwargs):
     return _utility.get_notes(limit)
 
-def delete_note(note_id):
+def delete_note(note_id, **kwargs):
     return _utility.delete_note(note_id)
 
-def random_number(min_val=1, max_val=100):
+def random_number(min_val=1, max_val=100, **kwargs):
     return _utility.random_number(min_val, max_val)
 
-def flip_coin():
+def flip_coin(**kwargs):
     return _utility.flip_coin()
 
-def roll_dice(sides=6):
+def roll_dice(sides=6, **kwargs):
     return _utility.roll_dice(sides)
