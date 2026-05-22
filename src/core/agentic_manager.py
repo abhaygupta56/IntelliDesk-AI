@@ -16,6 +16,54 @@ from config import Config
 logger = Logger.get_logger("AgenticManager")
 
 
+def _clean_fallback_args(func_name: str, args_str: str) -> dict:
+    if not args_str:
+        return {}
+    args_str = args_str.strip()
+    
+    # Try normal JSON parse
+    try:
+        clean_str = args_str.replace("'", '"')
+        return json.loads(clean_str)
+    except Exception:
+        pass
+        
+    # If JSON parsing fails, extract raw content from inside braces if present
+    content = args_str
+    if content.startswith("{") and content.endswith("}"):
+        content = content[1:-1].strip()
+    
+    import re
+    # Try regex matching for key-value pair, e.g. "key": "value" or 'key': 'value'
+    pattern = r'["\']([^"\']+)["\']\s*:\s*["\'](.*)["\']'
+    match = re.search(pattern, content)
+    if match:
+        key = match.group(1).strip()
+        val = match.group(2).strip()
+        schema = registry.get_function_schema(func_name)
+        if schema:
+            params = schema.get("parameters", {})
+            if key in params.get("properties", {}):
+                return {key: val}
+
+    # Strip any leading/trailing quotes
+    if (content.startswith('"') and content.endswith('"')) or (content.startswith("'") and content.endswith("'")):
+        content = content[1:-1].strip()
+        
+    # Query schema to see if there is a single required string parameter
+    schema = registry.get_function_schema(func_name)
+    if schema:
+        params = schema.get("parameters", {})
+        required = params.get("required", [])
+        if len(required) == 1:
+            req_param = required[0]
+            prop_type = params.get("properties", {}).get(req_param, {}).get("type", "string")
+            if prop_type == "string":
+                return {req_param: content}
+                
+    return {}
+
+
 class AgenticManager:
     """True Agentic Router using Native Groq Tools & ReAct Loop"""
     
@@ -219,12 +267,7 @@ class AgenticManager:
                         for match in matches:
                             func_name = match.group(1)
                             args_str = match.group(2)
-                            func_args = {}
-                            if args_str:
-                                try:
-                                    func_args = json.loads(args_str.replace("'", '"'))
-                                except Exception:
-                                    pass
+                            func_args = _clean_fallback_args(func_name, args_str) if args_str else {}
                                     
                             logger.info(f"Agent Tool Called (Fallback): {func_name}({func_args})")
                             result = registry.execute(func_name, **func_args)
@@ -280,6 +323,9 @@ class AgenticManager:
                 })
                 
                 # Execute each tool independently
+                any_action_success = False
+                terminal_msg = ""
+                
                 for tool_call in message.tool_calls:
                     func_name = tool_call.function.name
                     func_args_str = tool_call.function.arguments
@@ -317,6 +363,22 @@ class AgenticManager:
                         elif status == "needs_info":
                             result["instruction_for_ai"] = "STOP execution immediately. Do NOT guess or hallucinate missing information. Reply directly to the user asking for this exact information."
                             self.is_waiting_for_info = True
+                            
+                        # If a state-modifying action tool succeeded, mark it for early termination
+                        if status == "success" and func_name not in {
+                            "get_time", "get_date", "calculate", "get_reminders", 
+                            "list_whatsapp_contacts", "list_email_contacts", "get_notes", 
+                            "list_windows", "find_window", "get_active_window", 
+                            "whatsapp_history", "check_email_config", "sentry_status", 
+                            "show_my_memory", "analyze_screen"
+                        }:
+                            any_action_success = True
+                            msg = result.get("message") or result.get("response") or f"Successfully executed {func_name}."
+                            if not terminal_msg:
+                                terminal_msg = msg
+                            else:
+                                terminal_msg += f"\n{msg}"
+
                     functions_executed.append({
                         "function": func_name,
                         "arguments": func_args,
@@ -329,6 +391,17 @@ class AgenticManager:
                         "tool_call_id": tool_call.id,
                         "content": json.dumps(result)
                     })
+                
+                # Terminate early if any action tool succeeded
+                if any_action_success:
+                    logger.info("Early termination triggered by successful action tool(s).")
+                    self.conversation_history.append({"role": "assistant", "content": terminal_msg})
+                    return [{
+                        "type": "chat",
+                        "response": terminal_msg,
+                        "status": "success",
+                        "functions_executed": functions_executed
+                    }]
                     
             logger.warning("Max iterations reached for Agent Loop.")
             return [{
