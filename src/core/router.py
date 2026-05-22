@@ -59,6 +59,12 @@ class SmartRouter:
         if not text:
             return [{"type": "error", "response": "Please say something!", "status": "error"}]
 
+        # Check for code generation requests first
+        from src.core.conversation_manager import conversation_manager
+        if conversation_manager._is_code_request(text):
+            logger.info(f"Routing → CODE_GEN | Input: '{text[:50]}'")
+            return [conversation_manager._handle_code_generation(text)]
+
         resolved_mode = self._resolve_mode(text)
         logger.info(f"Routing → {resolved_mode.upper()} | Input: '{text[:50]}'")
 
@@ -70,6 +76,11 @@ class SmartRouter:
 
     def _resolve_mode(self, text: str) -> str:
         """Resolve the effective mode for this specific input."""
+        # Code generation always resolves to code_gen
+        from src.core.conversation_manager import conversation_manager
+        if conversation_manager._is_code_request(text):
+            return "code_gen"
+
         if self._mode == MODE_AUTO:
             if getattr(agentic_manager, 'is_waiting_for_info', False):
                 return MODE_AGENT
