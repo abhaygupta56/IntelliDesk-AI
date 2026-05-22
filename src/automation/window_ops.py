@@ -193,35 +193,37 @@ _window = WindowManager()
 # CONVENIENCE FUNCTIONS
 # ============================================================
 
-def get_active():
+def get_active(**kwargs):
     return _window.get_active_window()
 
-def list_windows():
+def list_windows(**kwargs):
     return _window.list_windows()
 
-def find(title):
+def find(title, **kwargs):
     return _window.find_window(title)
 
-def activate(title):
+def activate(title, **kwargs):
     return _window.activate_window(title)
 
-def minimize(title=None):
+def minimize(title=None, **kwargs):
     return _window.minimize_window(title)
 
-def maximize(title=None):
+def maximize(title=None, **kwargs):
     return _window.maximize_window(title)
 
-def close(title=None):
+def close(title=None, **kwargs):
     return _window.close_window(title)
 
-def resize(width, height, title=None):
+def resize(width, height, title=None, **kwargs):
     return _window.resize_window(width, height, title)
 
-def move(x, y, title=None):
+def move(x, y, title=None, **kwargs):
     return _window.move_window(x, y, title)
 
-def manage_window(action: str, title: str = None):
+def manage_window(action: str = None, title: str = None, **kwargs):
     """Macro tool to manage windows"""
+    if action is None:
+        return {"status": "error", "message": "No action specified"}
     action = action.lower()
     
     if action == "list":
