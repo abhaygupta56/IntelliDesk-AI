@@ -150,10 +150,14 @@ class KeyboardManager:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def execute_shortcut(self, keys: str):
+    def execute_shortcut(self, keys: str = None, shortcut: str = None, **kwargs):
         """Execute a key or key combination (e.g. 'ctrl+c', 'enter', 'ctrl+a, ctrl+c')"""
         try:
-            shortcuts = [s.strip() for s in keys.split(',')]
+            final_keys = keys or shortcut
+            if not final_keys:
+                return {"status": "error", "message": "No keys/shortcut specified"}
+            
+            shortcuts = [s.strip() for s in final_keys.split(',')]
             parts_pressed = []
             
             for shortcut in shortcuts:
@@ -256,5 +260,5 @@ def backspace():
 def delete():
     return _keyboard.delete()
 
-def execute_shortcut(keys: str):
-    return _keyboard.execute_shortcut(keys)
+def execute_shortcut(keys: str = None, shortcut: str = None, **kwargs):
+    return _keyboard.execute_shortcut(keys=keys, shortcut=shortcut, **kwargs)
