@@ -78,6 +78,7 @@ AGENT_PATTERNS = [
     r"\bset\s+(a\s+)?(timer|alarm|reminder)", # set timer/alarm/reminder
     r"\b(shutdown|restart|reboot|lock|sleep)\b",   # power ops
     r"\btake\s+a?\s*screenshot",            # take screenshot
+    r"\brecord\s+(the\s+)?(screen|video|audio|window)?", # record screen/video
     r"\bsearch\s+.+\s+(on|in)\s+",         # search X on/in Y
     r"\bschedule\s+",                       # schedule anything
     r"\bdownload\s+",                       # download
@@ -118,9 +119,14 @@ def classify(text: str) -> str:
 
     if is_short:
         for signal in CHAT_SIGNALS:
-            if signal in raw:
-                logger.debug(f"Classified as CHAT (signal: '{signal}'): '{text[:40]}'")
-                return "chat"
+            if " " in signal:
+                if re.search(r"\b" + re.escape(signal) + r"\b", raw):
+                    logger.debug(f"Classified as CHAT (signal: '{signal}'): '{text[:40]}'")
+                    return "chat"
+            else:
+                if signal in words:
+                    logger.debug(f"Classified as CHAT (signal: '{signal}'): '{text[:40]}'")
+                    return "chat"
 
     # ── 4. Check for AGENT verbs ──────────────────────────────────────────
     matched_verbs = AGENT_VERBS.intersection(words)
