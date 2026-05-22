@@ -566,43 +566,43 @@ _organizer = FolderOrganizer()
 # ============================================================
 
 # File/Folder operations
-def create_file(path, content=""):
+def create_file(path, content="", **kwargs):
     return _file_manager.create_file(path, content)
 
-def create_folder(path):
+def create_folder(path, **kwargs):
     return _file_manager.create_folder(path)
 
-def delete(path, to_recycle_bin=True):
+def delete(path, to_recycle_bin=True, **kwargs):
     return _file_manager.delete(path, to_recycle_bin)
 
-def rename(old_path, new_name):
+def rename(old_path, new_name, **kwargs):
     return _file_manager.rename(old_path, new_name)
 
-def move(source, destination):
+def move(source, destination, **kwargs):
     return _file_manager.move(source, destination)
 
-def copy(source, destination):
+def copy(source, destination, **kwargs):
     return _file_manager.copy(source, destination)
 
-def get_info(path):
+def get_info(path, **kwargs):
     return _file_manager.get_info(path)
 
-def open_location(path):
+def open_location(path, **kwargs):
     return _file_manager.open_location(path)
 
 # Search
-def search_by_name(directory, filename, recursive=True):
+def search_by_name(directory, filename, recursive=True, **kwargs):
     return _file_search.search_by_name(directory, filename, recursive)
 
-def search_by_extension(directory, extension):
+def search_by_extension(directory, extension, **kwargs):
     return _file_search.search_by_extension(directory, extension)
 
-def search_recent(directory, days=7):
+def search_recent(directory, days=7, **kwargs):
     return _file_search.search_recent(directory, days)
 
 # Organize
-def organize_by_type(directory):
+def organize_by_type(directory, **kwargs):
     return _organizer.organize_by_type(directory)
 
-def organize_by_date(directory):
+def organize_by_date(directory, **kwargs):
     return _organizer.organize_by_date(directory)
