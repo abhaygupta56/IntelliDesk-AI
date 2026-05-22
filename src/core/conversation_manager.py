@@ -157,24 +157,38 @@ class ConversationManager:
     
     def _is_code_request(self, text: str):
         """Detect code generation requests"""
-        code_keywords = [
-            "write code",
-            "generate code",
-            "code likh",
-            "code likho",
-            "script bana",
-            "program likh",
-            "write a script",
-            "create a program",
-            "write python",
-            "write javascript",
-            "create script",
-            "make a program",
-            "code banao",
+        raw = text.lower()
+        
+        # Exclude questions/informational requests that don't command action
+        question_words = ["which", "why", "who", "where", "recommend", "suggest", "compare", "difference", "how"]
+        is_question = any(q in raw for q in question_words) or (raw.startswith("what ") and not any(v in raw for v in ["write", "generate", "create", "make", "build"]))
+        if is_question and not any(verb in raw for verb in ["write", "generate", "create", "make", "build", "implement"]):
+            return False
+            
+        # 1. Regex patterns for flexible matching
+        code_indicators = [
+            r"\b(write|generate|create|make|build)\b.*\b(code|script|program|function|algorithm|app|class|macro)\b",
+            r"\b(code|script|program|function)\b.*\b(for|to|of|that)\b",
+            r"\b(write|generate|create)\b.*\b(python|javascript|java|cpp|html|css|bash|powershell|sql|c#)\b",
+            r"\b(python|javascript|cpp|java|c#|html)\b.*\b(code|script|program|function|implementation)\b",
+            r"\b(code\s+(likh|likho|banao|generate\s+karo))\b",
+            r"\b(script\s+(bana|banao|likh|likho))\b",
+            r"\b(write|generate|create|make|build|code|script|program)\b.*\b(in|on)\b.*\b(vscode|notepad|sublime|eclipse|pycharm|visual studio)\b",
         ]
         
-        text_lower = text.lower()
-        return any(keyword in text_lower for keyword in code_keywords)
+        import re
+        for pattern in code_indicators:
+            if re.search(pattern, raw):
+                return True
+                
+        # 2. String fallbacks
+        code_keywords = [
+            "write code", "generate code", "code likh", "code likho", "script bana",
+            "program likh", "write a script", "create a program", "write python",
+            "write javascript", "create script", "make a program", "code banao",
+            "write a code", "generate a code", "write program", "generate program"
+        ]
+        return any(keyword in raw for keyword in code_keywords)
     
     def _handle_code_generation(self, prompt: str):
         """Route to Ollama for code generation with auto-save"""
