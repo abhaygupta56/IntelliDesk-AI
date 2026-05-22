@@ -106,6 +106,7 @@ class OllamaClient:
                     "model": self.model,
                     "prompt": optimized_prompt,
                     "stream": False,
+                    "keep_alive": 0,
                     "options": {
                         "temperature": 0.1,
                         "top_p": 0.85,
@@ -116,14 +117,11 @@ class OllamaClient:
             )
             
             if response.status_code != 200:
-                self._stop()
                 return {"error": f"API error {response.status_code}", "code": None}
             
             raw_code = response.json().get("response", "")
             clean_code = self._extract_code(raw_code, language)
             filepath = self._save_code(clean_code, prompt, language)
-            
-            self._stop()
             
             logger.info(f"Code generated: {filepath}")
             
@@ -136,7 +134,6 @@ class OllamaClient:
             
         except Exception as e:
             logger.error(f"Generation failed: {e}")
-            self._stop()
             return {"error": str(e), "code": None}
     
     def _extract_code(self, text, lang):
@@ -232,18 +229,17 @@ class OllamaClient:
                     "model": self.model,
                     "prompt": f"User: {message}\nAssistant (brief, 2 sentences):",
                     "stream": False,
+                    "keep_alive": 0,
                     "options": {"temperature": 0.7, "num_predict": 100}
                 },
                 timeout=20
             )
             
             result = response.json().get("response", "").strip() if response.status_code == 200 else None
-            self._stop()
             return result
             
         except Exception as e:
             logger.error(f"Chat fallback failed: {e}")
-            self._stop()
             return None
     
     def stop(self):
