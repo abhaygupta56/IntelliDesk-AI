@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 import time
 from src.utils.logger import Logger
+from config import Config
 
 logger = Logger.get_logger("Voice")
 
@@ -33,7 +34,7 @@ class VoiceManager:
     def __init__(self):
         self.enabled = True
         self.current_voice = self.DEFAULT_VOICE
-        self.temp_dir = Path("data/voice_cache")
+        self.temp_dir = Config.DATA_DIR / "voice_cache"
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         
         # Voice settings

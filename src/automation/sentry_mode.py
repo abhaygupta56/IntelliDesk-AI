@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from src.utils.telegram_notifier import send_alert, is_configured
 from src.utils.logger import Logger
+from config import Config
 
 logger = Logger.get_logger("Sentry")
 
@@ -23,7 +24,7 @@ class SentryMode:
         self.thread = None
         self.camera = None
         self._stop_event = threading.Event()  # Used for interruptible breaks
-        self.temp_dir = Path("temp_sentry")
+        self.temp_dir = Config.BASE_DIR / "temp_sentry"
         self.temp_dir.mkdir(exist_ok=True)
 
         self.config = {

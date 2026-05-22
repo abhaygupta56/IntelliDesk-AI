@@ -24,7 +24,7 @@ class OllamaClient:
         self.base_url = Config.OLLAMA_BASE_URL
         self.model = Config.OLLAMA_MODEL
         self.is_running = False
-        self.save_dir = Path("generated_codes")
+        self.save_dir = Config.BASE_DIR / "generated_codes"
         self.save_dir.mkdir(exist_ok=True)
     
     def _check_running(self):
