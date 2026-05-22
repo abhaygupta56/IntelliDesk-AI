@@ -5,6 +5,8 @@ WITH DEBUG TIMING TO FIND SLOW CODE
 """
 
 import time
+from datetime import datetime
+from config import Config
 from src.core.groq_assistant import GroqAssistant
 from src.core.function_registry import registry
 from src.utils.logger import Logger
@@ -223,6 +225,10 @@ class ConversationManager:
                     f"```{language}\n{code}\n```"
                 )
             
+            # Save to history
+            self._add_to_history("user", prompt)
+            self._add_to_history("assistant", response_msg)
+
             return {
                 "type": "code_generation",
                 "response": response_msg,
@@ -240,6 +246,172 @@ class ConversationManager:
                 "type": "error",
                 "response": f"Code generation failed: {str(e)}",
                 "status": "error"
+            }
+
+    def _is_save_code_request(self, text: str) -> bool:
+        """Detect if the user is asking to save the previously generated code"""
+        raw = text.lower().strip()
+        import re
+        save_pattern = re.compile(
+            r"\b(save|write|export|dump)\b.*\b(code|script|program|file|it)\b",
+            re.IGNORECASE
+        )
+        return bool(save_pattern.search(raw))
+
+    def _handle_save_code(self, prompt: str):
+        """Extract the last code block from conversation history and save it"""
+        import re
+        
+        # 1. Search backwards through history for the last code block
+        code_block = None
+        detected_lang = None
+        
+        for msg in reversed(self.conversation_history):
+            content = msg.get("message", "")
+            # Find markdown code blocks
+            matches = re.findall(r"```([a-zA-Z0-9+#-]+)?\n(.*?)\n```", content, re.DOTALL)
+            if matches:
+                lang, code = matches[-1]
+                code_block = code.strip()
+                detected_lang = lang.strip() if lang else None
+                break
+                
+        # If not found in conversation_history, check groq assistant's history
+        if not code_block:
+            for msg in reversed(self.groq.get_history()):
+                content = msg.get("content", "")
+                if content:
+                    matches = re.findall(r"```([a-zA-Z0-9+#-]+)?\n(.*?)\n```", content, re.DOTALL)
+                    if matches:
+                        lang, code = matches[-1]
+                        code_block = code.strip()
+                        detected_lang = lang.strip() if lang else None
+                        break
+                        
+        if not code_block:
+            return {
+                "type": "chat",
+                "response": "❌ I couldn't find any code blocks in our recent conversation history to save.",
+                "status": "error"
+            }
+            
+        # 2. Determine language and extension
+        lang = detected_lang or "python"
+        lang = lang.lower()
+        ext_map = {
+            'python': 'py', 'py': 'py',
+            'javascript': 'js', 'js': 'js', 'node': 'js',
+            'java': 'java',
+            'cpp': 'cpp', 'c++': 'cpp',
+            'c': 'c',
+            'csharp': 'cs', 'cs': 'cs',
+            'html': 'html',
+            'css': 'css',
+            'go': 'go',
+            'rust': 'rs', 'rs': 'rs'
+        }
+        ext = ext_map.get(lang, 'txt')
+        
+        # 3. Try to extract target filename from prompt
+        filename = None
+        prompt_lower = prompt.lower()
+        
+        # Look for "to <name>.<ext>" or "as <name>.<ext>"
+        file_match = re.search(r"\b(?:to|as|in)\s+([a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)\b", prompt_lower)
+        if file_match:
+            filename = file_match.group(1)
+        else:
+            # Look for just a file name with extensions like .py, .cpp, .js
+            ext_pat = r"\b([a-zA-Z0-9_-]+\.(?:py|js|java|cpp|c|cs|html|css|go|rs|txt))\b"
+            file_match2 = re.search(ext_pat, prompt_lower)
+            if file_match2:
+                filename = file_match2.group(1)
+                
+        # 4. If no filename given, generate one based on the conversation topic
+        if not filename:
+            desc_prompt = "saved_code"
+            for msg in reversed(self.conversation_history):
+                if msg.get("role") == "user":
+                    user_msg = msg.get("message", "").lower()
+                    if not self._is_save_code_request(user_msg):
+                        desc_prompt = user_msg
+                        break
+            
+            remove_words = [
+                'write', 'code', 'for', 'create', 'make', 'generate', 'build',
+                'likh', 'banao', 'bana', 'likho', 'karo', 'solve', 'problem',
+                'python', 'javascript', 'java', 'cpp', 'html', 'css',
+                'a', 'an', 'the', 'in', 'to', 'me', 'ke', 'liye', 'ka', 'ki', 'on', 'screen'
+            ]
+            name = desc_prompt.lower()
+            for word in remove_words:
+                name = re.sub(rf'\b{word}\b', '', name)
+            
+            name = re.sub(r'[^\w\s]', '', name)
+            name = re.sub(r'\s+', '_', name.strip())
+            name = name.strip('_')[:25]
+            
+            if not name:
+                name = 'saved_code'
+                
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{name}_{timestamp}.{ext}"
+            
+        save_dir = Config.BASE_DIR / "generated_codes"
+        save_dir.mkdir(exist_ok=True)
+        filepath = save_dir / filename
+        
+        # 5. Ask for permission to save
+        title = "Save Code to Disk"
+        text = (
+            f"You have requested to save the code block. It will be saved as:\n"
+            f"📁 {filepath.relative_to(Config.BASE_DIR) if filepath.is_relative_to(Config.BASE_DIR) else filepath}\n\n"
+            f"Do you authorize this?"
+        )
+        
+        allowed = False
+        if registry._confirm_dispatcher is not None:
+            allowed = registry._confirm_dispatcher(title, text)
+        else:
+            # CLI fallback
+            print(f"\n[Code block to save]\n{code_block[:300]}...\n")
+            try:
+                answer = input(f"Save code to {filename}? (yes/no): ").strip().lower()
+                allowed = answer in ("yes", "y", "haan", "ha")
+            except (EOFError, IOError):
+                allowed = False
+                
+        if allowed:
+            filepath.write_text(code_block, encoding='utf-8')
+            logger.info(f"Code block saved to: {filepath}")
+            
+            response_msg = f"💾 Code successfully saved to: {filepath.name}\nFull path: `{filepath.absolute()}`"
+            
+            # Save the saving action to history
+            self._add_to_history("user", prompt)
+            self._add_to_history("assistant", response_msg)
+            
+            return {
+                "type": "code_generation",
+                "response": response_msg,
+                "data": {
+                    "code": code_block,
+                    "language": lang,
+                    "filepath": str(filepath)
+                },
+                "status": "success"
+            }
+        else:
+            logger.info("Saving code was denied by user")
+            response_msg = "❌ Save request cancelled by user. The code was not saved."
+            
+            self._add_to_history("user", prompt)
+            self._add_to_history("assistant", response_msg)
+            
+            return {
+                "type": "chat",
+                "response": response_msg,
+                "status": "cancelled"
             }
     
     def _detect_language(self, text: str):

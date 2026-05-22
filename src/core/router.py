@@ -65,6 +65,11 @@ class SmartRouter:
             logger.info(f"Routing → CODE_GEN | Input: '{text[:50]}'")
             return [conversation_manager._handle_code_generation(text)]
 
+        # Check for save code requests next
+        if conversation_manager._is_save_code_request(text):
+            logger.info(f"Routing → SAVE_CODE | Input: '{text[:50]}'")
+            return [conversation_manager._handle_save_code(text)]
+
         resolved_mode = self._resolve_mode(text)
         logger.info(f"Routing → {resolved_mode.upper()} | Input: '{text[:50]}'")
 
@@ -80,6 +85,9 @@ class SmartRouter:
         from src.core.conversation_manager import conversation_manager
         if conversation_manager._is_code_request(text):
             return "code_gen"
+        # Save code always resolves to save_code
+        if conversation_manager._is_save_code_request(text):
+            return "save_code"
 
         if self._mode == MODE_AUTO:
             if getattr(agentic_manager, 'is_waiting_for_info', False):
