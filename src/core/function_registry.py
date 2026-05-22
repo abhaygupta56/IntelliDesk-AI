@@ -68,6 +68,18 @@ class FunctionRegistry:
                     "function": system_ops.open_app
                 },
                 {
+                    "name": "launch_screen_recorder",
+                    "description": "Scan the system for screen recording applications (like OBS Studio, ShareX, Bandicam, Windows Snipping Tool, Xbox Game Bar) and launch it. If app_name is provided, it tries to launch that specific one, otherwise it scans and launches the best available recorder.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "app_name": {"type": "string", "description": "Specific recorder name to launch (optional)."}
+                        },
+                        "required": []
+                    },
+                    "function": system_ops.launch_screen_recorder
+                },
+                {
                     "name": "get_time",
                     "description": "Get current time",
                     "parameters": {"type": "object", "properties": {}, "required": []},
@@ -961,12 +973,12 @@ class FunctionRegistry:
         answer = input(f"\n⚠️  DANGEROUS ACTION: {func_name} {kwargs}\n  Type YES to allow: ").strip()
         return answer.upper() == "YES"
 
-    def get_function(self, name: str):
-        """Get function by name"""
+    def get_function_schema(self, name: str):
+        """Get function schema by name"""
         for category_funcs in self.all_functions.values():
             for func in category_funcs:
                 if func["name"] == name:
-                    return func["function"]
+                    return func
         return None
 
     def execute(self, func_name: str, **kwargs):
