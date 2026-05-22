@@ -951,7 +951,7 @@ class SpotlightApp:
                     self._log(response, Status.SUCCESS)
                     if data and 'code' in data:
                         self._log(data['code'], None)
-                        if 'filepath' in data:
+                        if data.get('filepath'):
                             self._log(f"Saved to: {data['filepath']}", Status.PROCESSING)
                 elif status == 'error':
                     self._log(response, Status.ERROR)

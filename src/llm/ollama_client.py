@@ -121,14 +121,40 @@ class OllamaClient:
             
             raw_code = response.json().get("response", "")
             clean_code = self._extract_code(raw_code, language)
-            filepath = self._save_code(clean_code, prompt, language)
             
-            logger.info(f"Code generated: {filepath}")
+            # Ask for permission to save the code to the folder
+            from src.core.function_registry import registry
+            title = "Save Generated Code"
+            text = (
+                f"IntelliDesk AI has generated the following {language} code:\n\n"
+                f"```\n{clean_code[:300]}...\n```\n\n"
+                f"Would you like to save this code to a file in the 'generated_codes' folder?"
+            )
+            
+            allowed = False
+            if registry._confirm_dispatcher is not None:
+                allowed = registry._confirm_dispatcher(title, text)
+            else:
+                # CLI fallback
+                print(f"\n[Generated {language} Code]\n{clean_code}\n")
+                try:
+                    answer = input("Would you like to save this code to a file? (yes/no): ").strip().lower()
+                    allowed = answer in ("yes", "y", "haan", "ha")
+                except (EOFError, IOError):
+                    allowed = False
+            
+            if allowed:
+                filepath = self._save_code(clean_code, prompt, language)
+                logger.info(f"Code generated and saved to: {filepath}")
+                filepath_str = str(filepath)
+            else:
+                logger.info("Code generated but saving was denied by user")
+                filepath_str = None
             
             return {
                 "code": clean_code,
                 "language": language,
-                "filepath": str(filepath),
+                "filepath": filepath_str,
                 "error": None
             }
             

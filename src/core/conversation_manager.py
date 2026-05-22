@@ -209,13 +209,19 @@ class ConversationManager:
                 }
             
             code = result.get("code", "")
-            filepath = result.get("filepath", "")
+            filepath = result.get("filepath")
             
-            response_msg = (
-                f"✅ Generated {language} code:\n\n"
-                f"```{language}\n{code}\n```\n\n"
-                f"💾 Saved to: {filepath}"
-            )
+            if filepath:
+                response_msg = (
+                    f"✅ Generated {language} code:\n\n"
+                    f"```{language}\n{code}\n```\n\n"
+                    f"💾 Saved to: {filepath}"
+                )
+            else:
+                response_msg = (
+                    f"✅ Generated {language} code (Not saved to disk):\n\n"
+                    f"```{language}\n{code}\n```"
+                )
             
             return {
                 "type": "code_generation",
