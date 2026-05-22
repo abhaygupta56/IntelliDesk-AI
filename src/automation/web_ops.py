@@ -245,19 +245,19 @@ _web = WebAutomation()
 # CONVENIENCE FUNCTIONS
 # ============================================================
 
-def google(query):
+def google(query, **kwargs):
     """Google search"""
     return _web.google_search(query)
 
-def youtube(query):
+def youtube(query, **kwargs):
     """YouTube search"""
     return _web.youtube_search(query)
 
-def play(query):
+def play(query, **kwargs):
     """Play on YouTube"""
     return _web.youtube_play(query)
 
-def open_website(url):
+def open_website(url, **kwargs):
     """Open website"""
     # Check shortcuts first
     url_lower = url.lower().strip()
@@ -266,14 +266,14 @@ def open_website(url):
     
     return _web.open_website(url)
 
-def wikipedia(query):
+def wikipedia(query, **kwargs):
     """Wikipedia search"""
     return _web.wikipedia_search(query)
 
-def weather(city=""):
+def weather(city="", **kwargs):
     """Get weather"""
     return _web.get_weather(city)
 
-def download(url, filename=None):
+def download(url, filename=None, **kwargs):
     """Download file"""
     return _web.download_file(url, filename)
