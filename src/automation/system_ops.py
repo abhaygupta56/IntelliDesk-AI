@@ -474,90 +474,94 @@ _system = SystemControl()
 # ============================================================
 
 # App Management
-def open_app(app_name):
+def open_app(app_name=None, name=None, **kwargs):
     """Open app via Start Menu"""
-    return _apps.open_app(app_name)
+    final_name = app_name or name
+    return _apps.open_app(final_name)
 
-def close_app(app_name):
+def close_app(app_name=None, name=None, **kwargs):
     """Close app"""
-    return _apps.close_app(app_name)
+    final_name = app_name or name
+    return _apps.close_app(final_name)
 
-def minimize_all():
+def minimize_all(**kwargs):
     """Minimize all windows"""
     return _apps.minimize_all()
 
-def switch_window():
+def switch_window(**kwargs):
     """Switch window"""
     return _apps.switch_window()
 
 # Screenshot
-def screenshot(filename=None):
+def screenshot(filename=None, **kwargs):
     """Take full screenshot"""
     return _screenshot.take_full(filename)
 
-def screenshot_region(x, y, width, height, filename=None):
+def screenshot_region(x, y, width, height, filename=None, **kwargs):
     """Take region screenshot"""
     return _screenshot.take_region(x, y, width, height, filename)
 
-def screenshot_window(filename=None):
+def screenshot_window(filename=None, **kwargs):
     """Take active window screenshot"""
     return _screenshot.take_window(filename)
 
 # Volume
-def volume_up(steps=5):
+def volume_up(steps=5, **kwargs):
     return _volume.volume_up(steps)
 
-def volume_down(steps=5):
+def volume_down(steps=5, **kwargs):
     return _volume.volume_down(steps)
 
-def mute():
+def mute(**kwargs):
     return _volume.mute()
 
 # Brightness
-def brightness_up(steps=10):
+def brightness_up(steps=10, **kwargs):
     return _brightness.brightness_up(steps)
 
-def brightness_down(steps=10):
+def brightness_down(steps=10, **kwargs):
     return _brightness.brightness_down(steps)
 
 # Clipboard
-def copy(text):
+def copy(text, **kwargs):
     return _clipboard.copy(text)
 
-def paste():
+def paste(**kwargs):
     return _clipboard.paste()
 
-def copy_action():
+def copy_action(**kwargs):
     return _clipboard.copy_action()
 
-def paste_action():
+def paste_action(**kwargs):
     return _clipboard.paste_action()
 
 # System
-def system_info():
+def system_info(**kwargs):
     return _system.get_system_info()
 
-def lock():
+def lock(**kwargs):
     return _system.lock()
 
-def shutdown(delay=0):
+def shutdown(delay=0, **kwargs):
     return _system.shutdown(delay)
 
-def restart(delay=0):
+def restart(delay=0, **kwargs):
     return _system.restart(delay)
 
-def sleep():
+def sleep(**kwargs):
     return _system.sleep()
 
-def cancel_shutdown():
+def cancel_shutdown(**kwargs):
     return _system.cancel_shutdown()
 
 # ============================================================
 # MACRO TOOLS
 # ============================================================
 
-def control_volume(action: str, steps: int = 5):
+def control_volume(action: str = None, steps: int = 5, **kwargs):
     """Macro tool for volume"""
+    if action is None:
+        return {"status": "error", "message": "No action specified"}
     action = action.lower()
     if action == "up" or action == "increase":
         return _volume.volume_up(steps)
@@ -567,8 +571,10 @@ def control_volume(action: str, steps: int = 5):
         return _volume.mute()
     return {"status": "error", "message": f"Unknown volume action: {action}"}
 
-def control_brightness(action: str, steps: int = 10):
+def control_brightness(action: str = None, steps: int = 10, **kwargs):
     """Macro tool for brightness"""
+    if action is None:
+        return {"status": "error", "message": "No action specified"}
     action = action.lower()
     if action == "up" or action == "increase":
         return _brightness.brightness_up(steps)
@@ -576,8 +582,10 @@ def control_brightness(action: str, steps: int = 10):
         return _brightness.brightness_down(steps)
     return {"status": "error", "message": f"Unknown brightness action: {action}"}
 
-def control_system(action: str, delay: int = 0):
+def control_system(action: str = None, delay: int = 0, **kwargs):
     """Macro tool for system power"""
+    if action is None:
+        return {"status": "error", "message": "No action specified"}
     action = action.lower()
     if action == "lock":
         return _system.lock()
@@ -592,3 +600,158 @@ def control_system(action: str, delay: int = 0):
     elif action == "info" or action == "status":
         return _system.get_system_info()
     return {"status": "error", "message": f"Unknown system action: {action}"}
+
+
+def launch_screen_recorder(app_name=None, **kwargs):
+    """
+    Scan the system for screen recording applications (like OBS Studio, ShareX, Bandicam,
+    Windows Snipping Tool, Xbox Game Bar) and launch it.
+    If no apps are found, return an error message.
+    """
+    import os
+    import sys
+    import subprocess
+    import time
+    
+    # Only supports Windows since we are in a Windows workspace environment
+    if sys.platform != "win32":
+        return {"status": "error", "message": "Screen recording launch is only supported on Windows systems."}
+        
+    recorders = []
+    
+    # 1. Check system Start Menu path for shortcuts
+    start_menu_paths = [
+        os.path.join(os.environ.get("PROGRAMDATA", "C:\\ProgramData"), "Microsoft\\Windows\\Start Menu\\Programs"),
+        os.path.join(os.environ.get("APPDATA", ""), "Microsoft\\Windows\\Start Menu\\Programs")
+    ]
+    
+    keywords = ["obs", "sharex", "bandicam", "screentogif", "camtasia", "snagit", "captura", "recorder", "recording"]
+    
+    for base_path in start_menu_paths:
+        if not os.path.exists(base_path):
+            continue
+        for root, dirs, files in os.walk(base_path):
+            for file in files:
+                if file.endswith(".lnk"):
+                    name_lower = file.lower()
+                    if any(kw in name_lower for kw in keywords) and "uninstall" not in name_lower:
+                        app_name_found = file[:-4] # strip .lnk
+                        shortcut_path = os.path.join(root, file)
+                        recorders.append({
+                            "name": app_name_found,
+                            "type": "shortcut",
+                            "path": shortcut_path
+                        })
+
+    # 2. Check common paths directly
+    common_exes = {
+        "OBS Studio": [
+            "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe",
+            "C:\\Program Files (x86)\\obs-studio\\bin\\64bit\\obs64.exe"
+        ],
+        "ShareX": [
+            "C:\\Program Files\\ShareX\\ShareX.exe",
+            "C:\\Program Files (x86)\\ShareX\\ShareX.exe",
+            os.path.expandvars("%LocalAppData%\\ShareX\\ShareX.exe")
+        ],
+        "Bandicam": [
+            "C:\\Program Files\\Bandicam\\bdcam.exe",
+            "C:\\Program Files (x86)\\Bandicam\\bdcam.exe"
+        ],
+        "ScreenToGif": [
+            "C:\\Program Files\\ScreenToGif\\ScreenToGif.exe",
+            os.path.expandvars("%LocalAppData%\\ScreenToGif\\ScreenToGif.exe")
+        ]
+    }
+    
+    for name, paths in common_exes.items():
+        # Avoid duplicate entries
+        if any(name.lower() in r["name"].lower() for r in recorders):
+            continue
+        for path in paths:
+            if os.path.exists(path):
+                recorders.append({
+                    "name": name,
+                    "type": "executable",
+                    "path": path
+                })
+                break
+
+    # Add Windows native options as fallback
+    native_options = [
+        {
+            "name": "Windows Snipping Tool (Native)",
+            "type": "native_cmd",
+            "command": "snippingtool"
+        },
+        {
+            "name": "Xbox Game Bar (Native)",
+            "type": "shortcut_trigger",
+            "keys": ["win", "alt", "r"]
+        }
+    ]
+    
+    # 3. If user requested a specific app_name, try to match it first
+    if app_name:
+        req_lower = app_name.lower().strip()
+        matched = None
+        for r in recorders:
+            if req_lower in r["name"].lower():
+                matched = r
+                break
+        
+        if not matched:
+            for opt in native_options:
+                if req_lower in opt["name"].lower() or ("snipping" in req_lower and "snipping" in opt["name"].lower()) or ("xbox" in req_lower and "xbox" in opt["name"].lower()):
+                    matched = opt
+                    break
+                    
+        if matched:
+            return _launch_recorder_item(matched)
+        else:
+            return {
+                "status": "error",
+                "message": f"Could not find a screen recorder matching '{app_name}' on your system."
+            }
+
+    # 4. If no specific app requested, choose the best one
+    third_party = [r for r in recorders if r["type"] in ("shortcut", "executable")]
+    if third_party:
+        best_choice = third_party[0]
+        return _launch_recorder_item(best_choice)
+        
+    logger.info("No third-party screen recording apps found. Falling back to Snipping Tool.")
+    return _launch_recorder_item(native_options[0])
+
+
+def _launch_recorder_item(item):
+    import os
+    import subprocess
+    import pyautogui
+    try:
+        name = item["name"]
+        logger.info(f"Attempting to launch recorder: {name}")
+        
+        if item["type"] == "shortcut" or item["type"] == "executable":
+            os.startfile(item["path"])
+            return {"status": "success", "message": f"Successfully launched screen recording app: {name}"}
+            
+        elif item["type"] == "native_cmd":
+            subprocess.Popen([item["command"]], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE if hasattr(subprocess, 'CREATE_NEW_CONSOLE') else 0)
+            return {
+                "status": "success", 
+                "message": f"No third-party recorder found. Launched native Windows Snipping Tool for screen recording."
+            }
+            
+        elif item["type"] == "shortcut_trigger":
+            pyautogui.hotkey(*item["keys"])
+            return {
+                "status": "success", 
+                "message": f"Triggered native Xbox Game Bar screen recording shortcut ({'+'.join(item['keys'])})."
+            }
+            
+    except Exception as e:
+        logger.error(f"Error launching recorder {item.get('name')}: {e}")
+        return {"status": "error", "message": f"Failed to launch {item.get('name')}: {str(e)}"}
+        
+    return {"status": "error", "message": "Unknown recorder item configuration."}
